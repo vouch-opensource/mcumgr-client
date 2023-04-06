@@ -60,4 +60,4 @@ The line length and MTU size can be increased, like this for the example:
 ./target/release/mcumgr-client -m 4096 -l 8192 -d /dev/ttyACM0 upload firmware-image.bin 
 ```
 
-This needs 1:09 minutes for the same file (instead of 3 minutes with the default buffer sizes), which is more than 10 times faster than the original mcumgr Go program.
+This needs 17 seconds for the same file (instead of 1:48 minutes with the default buffer sizes), which is more than 10 times faster than the original mcumgr Go program.
