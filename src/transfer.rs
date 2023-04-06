@@ -109,7 +109,7 @@ pub fn transceive(cli: &Cli, data: Vec<u8>) -> Result<(NmpHdr, serde_cbor::Value
     }
 
     // write request
-    port.write_all(&data).unwrap();
+    port.write_all(&data)?;
 
     // read result
 
