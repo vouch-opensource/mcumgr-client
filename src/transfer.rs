@@ -32,12 +32,6 @@ fn expect_byte(port: &mut dyn SerialPort, b: u8) -> Result<(), Error> {
     Ok(())
 }
 
-fn write_byte(port: &mut dyn SerialPort, b: u8) -> Result<(), Error> {
-    let mut byte = [b];
-    port.write(&mut byte)?;
-    Ok(())
-}
-
 // thread-safe counter, initialized with a random value on first call
 pub fn next_seq_id() -> u8 {
     lazy_static! {
@@ -115,9 +109,7 @@ pub fn transceive(cli: &Cli, data: Vec<u8>) -> Result<(NmpHdr, serde_cbor::Value
     }
 
     // write request
-    for b in data {
-        write_byte(&mut *port, b)?;
-    }
+    port.write_all(&data)?;
 
     // read result
 
