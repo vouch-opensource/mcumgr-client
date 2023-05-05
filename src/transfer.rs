@@ -13,9 +13,7 @@ use serialport::SerialPort;
 use std::cmp::min;
 use std::io::Cursor;
 use std::sync::atomic::{AtomicU8, Ordering};
-use std::time::Duration;
 
-use crate::cli::*;
 use crate::nmp_hdr::*;
 
 fn read_byte(port: &mut dyn SerialPort) -> Result<u8, Error> {
@@ -41,7 +39,7 @@ pub fn next_seq_id() -> u8 {
 }
 
 pub fn encode_request(
-    cli: &Cli,
+    linelength: usize,
     op: NmpOp,
     group: NmpGroup,
     id: NmpIdImage,
@@ -87,7 +85,7 @@ pub fn encode_request(
             // thread::sleep(Duration::from_millis(20));
             data.extend_from_slice(&[4, 20]);
         }
-        let write_len = min(cli.linelength - 4, totlen - written);
+        let write_len = min(linelength - 4, totlen - written);
         data.extend_from_slice(&base64_data[written..written + write_len]);
         data.push(b'\n');
         written += write_len;
@@ -96,12 +94,11 @@ pub fn encode_request(
     Ok((data, request_header))
 }
 
-pub fn transceive(cli: &Cli, data: Vec<u8>) -> Result<(NmpHdr, serde_cbor::Value), Error> {
-    // open serial port
-    let mut port = serialport::new(&cli.device, cli.baudrate)
-        .timeout(Duration::from_secs(cli.timeout as u64))
-        .open()?;
-
+pub fn transceive(
+    //port: &mut Box<dyn SerialPort>,
+    port: &mut dyn SerialPort,
+    data: Vec<u8>,
+) -> Result<(NmpHdr, serde_cbor::Value), Error> {
     // empty input buffer
     let to_read = port.bytes_to_read()?;
     for _ in 0..to_read {

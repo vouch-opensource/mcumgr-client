@@ -1,35 +1,55 @@
 // Copyright © 2023 Vouch.io LLC
 
-use anyhow::{bail, Error, Result};
+use anyhow::{bail, Context, Error, Result};
+use humantime::format_duration;
+use indicatif::{ProgressBar, ProgressStyle};
 use log::debug;
 use log::info;
 use serde_cbor;
 use serde_json;
+use serialport::SerialPort;
 use sha2::{Digest, Sha256};
 use std::fs::read;
 use std::path::PathBuf;
+use std::time::Duration;
+use std::time::Instant;
 
 use crate::cli::*;
 use crate::nmp_hdr::*;
+use crate::test_serial_port::TestSerialPort;
 use crate::transfer::encode_request;
 use crate::transfer::next_seq_id;
 use crate::transfer::transceive;
 
+fn open_port(cli: &Cli) -> Result<Box<dyn SerialPort>, Error> {
+    if cli.device.to_lowercase() == "test" {
+        Ok(Box::new(TestSerialPort::new()))
+    } else {
+        serialport::new(&cli.device, cli.baudrate)
+            .timeout(Duration::from_secs(cli.timeout as u64))
+            .open()
+            .with_context(|| format!("failed to open serial port {}", &cli.device))
+    }
+}
+
 pub fn list(cli: &Cli) -> Result<(), Error> {
     info!("send image list request");
+
+    // open serial port
+    let mut port = open_port(cli)?;
 
     // send request
     let body: Vec<u8> =
         serde_cbor::to_vec(&std::collections::BTreeMap::<String, String>::new()).unwrap();
     let (data, request_header) = encode_request(
-        cli,
+        cli.linelength,
         NmpOp::Read,
         NmpGroup::Image,
         NmpIdImage::State,
         &body,
         next_seq_id(),
     )?;
-    let (response_header, response_body) = transceive(cli, data)?;
+    let (response_header, response_body) = transceive(&mut *port, data)?;
 
     // verify sequence id
     if response_header.seq != request_header.seq {
@@ -53,12 +73,22 @@ pub fn list(cli: &Cli) -> Result<(), Error> {
 pub fn upload(cli: &Cli, filename: &PathBuf) -> Result<(), Error> {
     info!("upload file: {}", filename.to_string_lossy());
 
+    // open serial port
+    let mut port = open_port(cli)?;
+
     // load file
     let data = read(filename)?;
     info!("{} bytes to transfer", data.len());
 
+    // create a progress bar
+    let pb = ProgressBar::new(data.len() as u64);
+    pb.set_style(ProgressStyle::default_bar()
+    .template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({eta})")
+    .unwrap().progress_chars("=> "));
+
     // transfer in blocks
     let mut off: usize = 0;
+    let start_time = Instant::now();
     loop {
         let off_start = off;
         let mut try_length = cli.mtu;
@@ -96,7 +126,7 @@ pub fn upload(cli: &Cli, filename: &PathBuf) -> Result<(), Error> {
             // convert to bytes with CBOR
             let body = serde_cbor::to_vec(&req)?;
             let (chunk, request_header) = encode_request(
-                cli,
+                cli.linelength,
                 NmpOp::Write,
                 NmpGroup::Image,
                 NmpIdImage::Upload,
@@ -119,7 +149,7 @@ pub fn upload(cli: &Cli, filename: &PathBuf) -> Result<(), Error> {
             }
 
             // send request
-            let (response_header, response_body) = transceive(cli, chunk)?;
+            let (response_header, response_body) = transceive(&mut *port, chunk)?;
 
             // verify sequence id
             if response_header.seq != request_header.seq {
@@ -163,11 +193,18 @@ pub fn upload(cli: &Cli, filename: &PathBuf) -> Result<(), Error> {
         if off_start == off {
             bail!("wrong offset received");
         }
-        info!("{}% uploaded", 100 * off / data.len());
+        pb.set_position(off as u64);
+        //info!("{}% uploaded", 100 * off / data.len());
         if off == data.len() {
             break;
         }
     }
-    info!("upload complete");
+    pb.finish_with_message("upload complete");
+
+    let elapsed = start_time.elapsed().as_secs_f64().round();
+    let elapsed_duration = Duration::from_secs(elapsed as u64);
+    let formatted_duration = format_duration(elapsed_duration);
+    info!("upload took {}", formatted_duration);
+
     Ok(())
 }
