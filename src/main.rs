@@ -8,6 +8,7 @@ use std::process;
 pub mod cli;
 pub mod image;
 pub mod nmp_hdr;
+pub mod test_serial_port;
 pub mod transfer;
 
 use crate::cli::*;

@@ -224,14 +224,15 @@ pub struct ImageUploadReq {
     pub image_num: u8,
     #[serde(rename = "len", skip_serializing_if = "Option::is_none")]
     pub len: Option<u32>,
-    #[serde(rename = "off")]
+    #[serde(rename = "off", default)]
     pub off: u32,
     #[serde(
         rename = "sha",
+        default,
         skip_serializing_if = "Option::is_none",
         with = "serde_bytes"
     )]
     pub data_sha: Option<Vec<u8>>,
-    #[serde(rename = "upgrade", skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "upgrade", default, skip_serializing_if = "Option::is_none")]
     pub upgrade: Option<bool>,
 }
