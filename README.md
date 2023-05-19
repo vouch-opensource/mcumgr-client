@@ -30,6 +30,12 @@ Example to flash an external flash in slot 3, and with the increased MTU and lin
 ./target/release/mcumgr-client -s 3 -m 4096 -l 8192 -d /dev/ttyACM0 upload ext-flash.bin 
 ```
 
+You can omit the `-d` parameter for the device. If not specified and there are more than one device, it lists all detected devices. If there is only one device, it uses this device, if no device name is specified. And if the filename contains `slot1`, for example `firmware-slot1.bin`, then it flashes to slot 1. If it contains `slot3`, then it flashes to slot 3. This makes updates fail-safe and easy to do. For example you can use it like this with the right file names:
+```
+mcumgr-client upload firmware-slot1.bin
+mcumgr-client upload ext-flash-slot3.bin
+```
+
 # Notes
 There is a bug in the Zephyr CDC ACM driver. When building mcuboot for it, it needs this patch:
 

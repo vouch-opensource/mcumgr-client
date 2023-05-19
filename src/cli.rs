@@ -7,7 +7,7 @@ use std::path::PathBuf;
 #[command(author, version, about, long_about = None)]
 pub struct Cli {
     /// device name
-    #[arg(short, long, value_name = "NAME")]
+    #[arg(short, long, default_value = "")]
     pub device: String,
 
     /// slot number

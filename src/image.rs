@@ -71,7 +71,19 @@ pub fn list(cli: &Cli) -> Result<(), Error> {
 }
 
 pub fn upload(cli: &Cli, filename: &PathBuf) -> Result<(), Error> {
-    info!("upload file: {}", filename.to_string_lossy());
+    let filename_string = filename.to_string_lossy();
+    info!("upload file: {}", filename_string);
+
+    // special feature: if the name contains "slot1" or "slot3", then use this slot
+    let filename_lowercase = filename_string.to_lowercase();
+    let mut slot = cli.slot;
+    if filename_lowercase.contains(&"slot1".to_lowercase()) {
+        slot = 1;
+    }
+    if filename_lowercase.contains(&"slot3".to_lowercase()) {
+        slot = 3;
+    }
+    info!("flashing to slot {}", slot);
 
     // open serial port
     let mut port = open_port(cli)?;
@@ -95,8 +107,10 @@ pub fn upload(cli: &Cli, filename: &PathBuf) -> Result<(), Error> {
         debug!("try_length: {}", try_length);
         let seq_id = next_seq_id();
         loop {
+            // get slot
+            let image_num = slot;
+
             // create image upload request
-            let image_num = cli.slot;
             if off + try_length > data.len() {
                 try_length = data.len() - off;
             }
