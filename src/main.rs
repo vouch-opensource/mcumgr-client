@@ -4,6 +4,7 @@ use clap::Parser;
 use log::{error, info, LevelFilter};
 use serialport::available_ports;
 use simplelog::{ColorChoice, Config, SimpleLogger, TermLogger, TerminalMode};
+use std::env;
 use std::process;
 
 pub mod cli;
@@ -39,32 +40,62 @@ fn main() {
     )
     .unwrap_or_else(|_| SimpleLogger::init(LevelFilter::Info, Default::default()).unwrap());
 
-    // if no device is specified, list all devices and use it, if there is only one device
+    // if no device is specified, try to auto detect it
     if cli.device.is_empty() {
+        let mut bootloaders = Vec::new();
         match available_ports() {
-            Ok(ports) => match ports.len() {
-                0 => {
-                    error!("No serial port found.");
-                    process::exit(1);
-                }
-                1 => {
-                    cli.device = ports[0].port_name.clone();
-                    info!(
-                        "Only one serial port found, setting device to: {}",
-                        cli.device
-                    );
-                }
-                _ => {
-                    error!("More than one serial port found, please specify one:");
-                    for p in ports {
-                        println!("{}", p.port_name);
+            Ok(ports) => {
+                for port in ports {
+                    let name = port.port_name;
+                    // on Mac, use only special names
+                    if env::consts::OS == "macos" {
+                        if name.contains("cu.usbmodem") {
+                            bootloaders.push(name);
+                        }
+                    } else {
+                        bootloaders.push(name);
                     }
-                    process::exit(1);
                 }
-            },
-            Err(e) => {
-                println!("Error listing serial ports: {}", e);
-                process::exit(1);
+            }
+            Err(_) => {}
+        }
+
+        // if there is one bootloader device, then use it
+        if bootloaders.len() == 1 {
+            cli.device = bootloaders[0].clone();
+            info!(
+                "One bootloader device found, setting device to: {}",
+                cli.device
+            );
+        } else {
+            // otherwise print all devices, and use a device, if there is only one device
+            if cli.device.is_empty() {
+                match available_ports() {
+                    Ok(ports) => match ports.len() {
+                        0 => {
+                            error!("No serial port found.");
+                            process::exit(1);
+                        }
+                        1 => {
+                            cli.device = ports[0].port_name.clone();
+                            info!(
+                                "Only one serial port found, setting device to: {}",
+                                cli.device
+                            );
+                        }
+                        _ => {
+                            error!("More than one serial port found, please specify one:");
+                            for p in ports {
+                                println!("{}", p.port_name);
+                            }
+                            process::exit(1);
+                        }
+                    },
+                    Err(e) => {
+                        println!("Error listing serial ports: {}", e);
+                        process::exit(1);
+                    }
+                }
             }
         }
     }

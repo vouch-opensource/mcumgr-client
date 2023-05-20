@@ -19,7 +19,7 @@ pub struct Cli {
     pub verbose: bool,
 
     /// maximum timeout in seconds
-    #[arg(short, long, default_value_t = 10)]
+    #[arg(short, long, default_value_t = 60)]
     pub timeout: u32,
 
     /// maximum length per line
