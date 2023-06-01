@@ -7,7 +7,7 @@ use std::path::PathBuf;
 #[command(author, version, about, long_about = None)]
 pub struct Cli {
     /// device name
-    #[arg(short, long, value_name = "NAME")]
+    #[arg(short, long, default_value = "")]
     pub device: String,
 
     /// slot number
@@ -19,7 +19,7 @@ pub struct Cli {
     pub verbose: bool,
 
     /// maximum timeout in seconds
-    #[arg(short, long, default_value_t = 10)]
+    #[arg(short, long, default_value_t = 60)]
     pub timeout: u32,
 
     /// maximum length per line
