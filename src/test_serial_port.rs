@@ -77,15 +77,16 @@ impl Write for TestSerialPort {
 
         match request_header.id {
             id if id == NmpIdImage::State as u8 => {
-                let empty_cbor_body =
-                    serde_cbor::to_vec(&std::collections::BTreeMap::<String, String>::new())
-                        .unwrap();
+                let mut map = std::collections::BTreeMap::<String, String>::new();
+                let test_string = "x".repeat(1024);
+                map.insert("test".to_string(), test_string);
+                let body = serde_cbor::to_vec(&map).unwrap();
                 let (encoded_response, _) = encode_request(
-                    100000,
+                    100,
                     NmpOp::ReadRsp,
                     NmpGroup::Image,
                     NmpIdImage::State,
-                    &empty_cbor_body,
+                    &body,
                     request_header.seq,
                 )
                 .unwrap();
