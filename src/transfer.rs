@@ -95,7 +95,6 @@ pub fn encode_request(
 }
 
 pub fn transceive(
-    //port: &mut Box<dyn SerialPort>,
     port: &mut dyn SerialPort,
     data: Vec<u8>,
 ) -> Result<(NmpHdr, serde_cbor::Value), Error> {
@@ -109,23 +108,45 @@ pub fn transceive(
     port.write_all(&data)?;
 
     // read result
-
-    // first wait for the chunk start marker
-    expect_byte(&mut *port, 6)?;
-    expect_byte(&mut *port, 9)?;
-
-    // next read until newline
+    let mut bytes_read = 0;
+    let mut expected_len = 0;
     let mut result: Vec<u8> = Vec::new();
     loop {
-        let b = read_byte(&mut *port)?;
-        if b == 0xa {
-            break;
+        // first wait for the chunk start marker
+        if bytes_read == 0 {
+            expect_byte(&mut *port, 6)?;
+            expect_byte(&mut *port, 9)?;
         } else {
-            result.push(b);
+            expect_byte(&mut *port, 4)?;
+            expect_byte(&mut *port, 20)?;
+        }
+
+        // next read until newline
+        loop {
+            let b = read_byte(&mut *port)?;
+            if b == 0xa {
+                break;
+            } else {
+                result.push(b);
+                bytes_read += 1;
+            }
+        }
+
+        // try to extract length
+        let decoded: Vec<u8> = general_purpose::STANDARD.decode(&result)?;
+        if expected_len == 0 {
+            let len = BigEndian::read_u16(&decoded);
+            if len > 0 {
+                expected_len = len as usize;
+            }
+            debug!("expected length: {}", expected_len);
+        }
+
+        // stop when done
+        if decoded.len() >= expected_len {
+            break;
         }
     }
-
-    // TODO: could be more lines, need to check if length is equal to packet length
 
     // decode base64
     debug!("result string: {}", String::from_utf8(result.clone())?);
