@@ -22,12 +22,17 @@ fn read_byte(port: &mut dyn SerialPort) -> Result<u8, Error> {
     Ok(byte[0])
 }
 
-fn expect_byte(port: &mut dyn SerialPort, b: u8) -> Result<(), Error> {
-    let read = read_byte(port)?;
-    if read != b {
-        bail!("read error, expected: {}, read: {}", b, read);
+fn read_until_newline(port: &mut dyn SerialPort) -> Result<Vec<u8>, Error> {
+    let mut result: Vec<u8> = Vec::new();
+    loop {
+        let b = read_byte(&mut *port)?;
+        if b == 0xa {
+            break;
+        } else {
+            result.push(b);
+        }
     }
-    Ok(())
+    Ok(result)
 }
 
 // thread-safe counter, initialized with a random value on first call
@@ -95,6 +100,7 @@ pub fn encode_request(
 }
 
 pub fn transceive(
+    //port: &mut Box<dyn SerialPort>,
     port: &mut dyn SerialPort,
     data: Vec<u8>,
 ) -> Result<(NmpHdr, serde_cbor::Value), Error> {
@@ -107,71 +113,64 @@ pub fn transceive(
     // write request
     port.write_all(&data)?;
 
-    // read result
-    let mut bytes_read = 0;
-    let mut expected_len = 0;
+    // next read until newline
+    let mut len: usize = 0;
+    let mut line: Vec<u8>;
     let mut result: Vec<u8> = Vec::new();
     loop {
-        // first wait for the chunk start marker
-        if bytes_read == 0 {
-            expect_byte(&mut *port, 6)?;
-            expect_byte(&mut *port, 9)?;
-        } else {
-            expect_byte(&mut *port, 4)?;
-            expect_byte(&mut *port, 20)?;
-        }
+        line = read_until_newline(&mut *port)?;
 
-        // next read until newline
+        // Remove '\r'
         loop {
-            let b = read_byte(&mut *port)?;
-            if b == 0xa {
-                break;
+            if line.len() > 1 && line[0] == 0xd {
+                line = line[1..].to_vec();
             } else {
-                result.push(b);
-                bytes_read += 1;
+                break;
             }
         }
 
-        // try to extract length
-        let decoded: Vec<u8> = general_purpose::STANDARD.decode(&result)?;
-        if expected_len == 0 {
-            let len = BigEndian::read_u16(&decoded);
-            if len > 0 {
-                expected_len = len as usize;
-            }
-            debug!("expected length: {}", expected_len);
+        debug!("result string: {}....", String::from_utf8(line.clone())?);
+
+        // Skip data if the two first bytes is neither (hex) [04 14] or [06 09]
+        if line.len() < 2 || ((line[0] != 0x4 || line[1] != 0x14) && (line[0] != 0x6 || line[1] != 0x9)) {
+                continue;
         }
 
-        // stop when done
-        if decoded.len() >= expected_len {
+        // Decode base64
+        let data_to_decode: Vec<u8> = line[2..].to_vec();
+        let mut decoded: Vec<u8> = general_purpose::STANDARD.decode(&data_to_decode)?;
+
+        // Get length from the first message, starting with bytes 0x6 and 0x9
+        if line[0] == 0x6 && line[1] == 0x9 {
+            if decoded.len() < 2 {
+                continue
+            }
+            len = BigEndian::read_u16(&decoded) as usize;
+
+            decoded = decoded[2..].to_vec();
+        }
+
+        result.append(&mut decoded);
+
+        // Verify checksum when all data is received
+        if result.len() >= len {
+            let read_checksum = BigEndian::read_u16(&result[result.len() - 2..]);
+            let calculated_checksum = State::<XMODEM>::calculate(&result[..result.len() - 2].to_vec());
+            if read_checksum != calculated_checksum {
+                bail!("wrong checksum");
+            }
+            // Trim away CRC bytes
+            result = result[..result.len() - 2].to_vec();
             break;
         }
     }
 
-    // decode base64
-    debug!("result string: {}", String::from_utf8(result.clone())?);
-    let decoded: Vec<u8> = general_purpose::STANDARD.decode(&result)?;
-
-    // verify length: must be the decoded length, minus the 2 bytes to encode the length
-    let len = BigEndian::read_u16(&decoded) as usize;
-    if len != decoded.len() - 2 {
-        bail!("wrong chunk length");
-    }
-
-    // verify checksum
-    let data = decoded[2..decoded.len() - 2].to_vec();
-    let read_checksum = BigEndian::read_u16(&decoded[decoded.len() - 2..]);
-    let calculated_checksum = State::<XMODEM>::calculate(&data);
-    if read_checksum != calculated_checksum {
-        bail!("wrong checksum");
-    }
-
     // read header
-    let mut cursor = Cursor::new(&data);
+    let mut cursor = Cursor::new(&result);
     let response_header = NmpHdr::deserialize(&mut cursor).unwrap();
     debug!("response header: {:?}", response_header);
 
-    debug!("cbor: {}", hex::encode(&data[8..]));
+    debug!("cbor: {}", hex::encode(&result[8..]));
 
     // decode body in CBOR format
     let body = serde_cbor::from_reader(cursor)?;
