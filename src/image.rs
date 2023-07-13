@@ -1,13 +1,15 @@
 // Copyright © 2023 Vouch.io LLC
 
-use anyhow::{bail, Context, Error, Result};
+//! Image functions
+//! Currently implemented: list and upload.
+
+use anyhow::{bail, Error, Result};
 use humantime::format_duration;
 use indicatif::{ProgressBar, ProgressStyle};
 use log::debug;
 use log::info;
 use serde_cbor;
 use serde_json;
-use serialport::SerialPort;
 use sha2::{Digest, Sha256};
 use std::fs::read;
 use std::path::PathBuf;
@@ -16,21 +18,9 @@ use std::time::Instant;
 
 use crate::cli::*;
 use crate::nmp_hdr::*;
-use crate::test_serial_port::TestSerialPort;
 use crate::transfer::encode_request;
 use crate::transfer::next_seq_id;
 use crate::transfer::transceive;
-
-fn open_port(cli: &Cli) -> Result<Box<dyn SerialPort>, Error> {
-    if cli.device.to_lowercase() == "test" {
-        Ok(Box::new(TestSerialPort::new()))
-    } else {
-        serialport::new(&cli.device, cli.baudrate)
-            .timeout(Duration::from_secs(cli.timeout as u64))
-            .open()
-            .with_context(|| format!("failed to open serial port {}", &cli.device))
-    }
-}
 
 pub fn list(cli: &Cli) -> Result<(), Error> {
     info!("send image list request");
@@ -45,7 +35,7 @@ pub fn list(cli: &Cli) -> Result<(), Error> {
         cli.linelength,
         NmpOp::Read,
         NmpGroup::Image,
-        NmpIdImage::State,
+        NmpIdImage::State as u8,
         &body,
         next_seq_id(),
     )?;
@@ -143,7 +133,7 @@ pub fn upload(cli: &Cli, filename: &PathBuf) -> Result<(), Error> {
                 cli.linelength,
                 NmpOp::Write,
                 NmpGroup::Image,
-                NmpIdImage::Upload,
+                NmpIdImage::Upload as u8,
                 &body,
                 seq_id,
             )?;

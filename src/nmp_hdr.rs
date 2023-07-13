@@ -44,9 +44,13 @@ pub enum NmpGroup {
     PerUser = 64,
 }
 
+pub trait NmpId {
+    fn value(&self) -> u8;
+}
+
 #[repr(u8)]
 #[derive(Debug, Copy, Clone)]
-pub enum NmpIdDef {
+pub enum NmpIdDefault {
     Echo = 0,
     ConsEchoCtrl = 1,
     TaskStat = 2,
@@ -125,14 +129,14 @@ pub struct NmpHdr {
 }
 
 impl NmpHdr {
-    pub fn new_req(op: NmpOp, group: NmpGroup, id: NmpIdImage) -> NmpHdr {
+    pub fn new_req(op: NmpOp, group: NmpGroup, id: u8) -> NmpHdr {
         NmpHdr {
             op,
             flags: 0,
             len: 0,
             group,
             seq: 0,
-            id: id as u8,
+            id,
         }
     }
 

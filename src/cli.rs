@@ -1,7 +1,11 @@
 // Copyright © 2023 Vouch.io LLC
 
+use anyhow::{Context, Error};
 use clap::{Parser, Subcommand};
-use std::path::PathBuf;
+use serialport::SerialPort;
+use std::{path::PathBuf, time::Duration};
+
+use crate::test_serial_port::TestSerialPort;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -45,4 +49,21 @@ pub enum Commands {
 
     /// upload a file to the device
     Upload { filename: PathBuf },
+
+    /// echo a message
+    Echo { message: String },
+
+    /// reset the device
+    Reset,
+}
+
+pub fn open_port(cli: &Cli) -> Result<Box<dyn SerialPort>, Error> {
+    if cli.device.to_lowercase() == "test" {
+        Ok(Box::new(TestSerialPort::new()))
+    } else {
+        serialport::new(&cli.device, cli.baudrate)
+            .timeout(Duration::from_secs(cli.timeout as u64))
+            .open()
+            .with_context(|| format!("failed to open serial port {}", &cli.device))
+    }
 }
