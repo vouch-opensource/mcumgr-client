@@ -34,78 +34,102 @@ use crate::cli::*;
 use crate::default::*;
 use crate::image::*;
 
-async fn find_light(central: &Adapter) -> Option<Peripheral> {
-    for p in central.peripherals().await.unwrap() {
-        if p.properties()
-            .await
-            .unwrap()
-            .unwrap()
-            .local_name
-            .iter()
-            .any(|name| name.contains("VKA"))
-        {
-            return Some(p);
-        }
-    }
-    None
-}
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
+async fn connect_light() -> Result<Peripheral, Box<dyn Error>> {
     let manager = Manager::new().await.unwrap();
 
     // get the first bluetooth adapter
-    let adapters = manager.adapters().await?;
+    let adapters = manager.adapters().await.unwrap();
     let central = adapters.into_iter().nth(0).unwrap();
 
-    // start scanning for devices
-    central.start_scan(ScanFilter::default()).await?;
-    // instead of waiting, you can use central.events() to get a stream which will
-    // notify you of new devices, for an example of that see examples/event_driven_discovery.rs
-    time::sleep(Duration::from_secs(2)).await;
+    let desired_name = "VKA";
 
-    // find the device we're interested in
-    let light = find_light(&central).await.unwrap();
+    let mut found_light = None;
+    let mut events = central.events().await.unwrap();
+
+    // start scanning for devices
+    central.start_scan(ScanFilter::default()).await.unwrap();
+
+    while let Some(event) = events.next().await {
+        if let CentralEvent::DeviceDiscovered(addr) = event {
+            let peripheral = central.peripheral(&addr).await.unwrap();
+            if let Some(properties) = peripheral.properties().await.unwrap() {
+                if let Some(name) = properties.local_name {
+                    if name == desired_name {
+                        found_light = Some(peripheral);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    let light = found_light
+        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::Other, "Device not found"))?;
 
     // connect to the device
     light.connect().await?;
     println!("VKA connected");
+    Ok(light)
+}
 
-    // discover services and characteristics
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
+    const MAX_ATTEMPTS: u32 = 3;
+
+    let mut light = None;
+
+    for attempt in 1..=MAX_ATTEMPTS {
+        match connect_light().await {
+            Ok(l) => {
+                light = Some(l);
+                break;
+            }
+            Err(e) if attempt < MAX_ATTEMPTS => {
+                println!("Attempt #{} failed, retrying...", attempt);
+                time::sleep(Duration::from_secs(1)).await;
+            }
+            Err(e) => {
+                println!("Attempt #{} failed, giving up.", attempt);
+                return Err(e);
+            }
+        }
+    }
+
+    let light = light.expect("Unable to establish connection");
+
+    // Discover services and characteristics
     light.discover_services().await.unwrap();
-    //time::sleep(Duration::from_secs(5)).await;
 
-    // get a list of the peripheral's characteristics.
+    // Get a list of the peripheral's characteristics.
     let characteristics = light.characteristics();
 
-    // subscribe to the SMP characteristic and write the image list command
+    // Filter the characteristics to find the one you're interested in.
     let char_uuid = Uuid::parse_str("DA2E7828-FBCE-4E01-AE9E-261174997C48").unwrap();
     let desired_char = characteristics
         .into_iter()
         .find(|c| c.uuid == char_uuid)
         .unwrap();
+
+    // Subscribe to notifications from the characteristic.
     light.subscribe(&desired_char).await.unwrap();
-    let bytes_to_write = vec![0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x80, 0x00, 0xa0];
+
+    // Write bytes to the characteristic.
+    let bytes_to_write = vec![0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x80, 0x00, 0xa0]; // Replace with the bytes you want to write
     light
         .write(&desired_char, &bytes_to_write, WriteType::WithoutResponse)
         .await
         .unwrap();
 
-        // show the reponse
     let mut notification_stream = light.notifications().await.unwrap();
-    tokio::spawn(async move {
-        while let Some(notification) = notification_stream.next().await {
-            match notification {
-                ValueNotification { uuid, value, .. } if uuid == desired_char.uuid || true => {
-                    println!("Received data: {:?}", value);
-                }
-                _ => {}
-            }
-        }
-    });
-
     loop {
-        time::sleep(Duration::from_secs(1)).await;
+        match notification_stream.next().await {
+            Some(ValueNotification { uuid, value, .. }) if uuid == desired_char.uuid => {
+                println!("Received data: {:?}", value);
+                break;
+            }
+            _ => {}
+        }
+        time::sleep(Duration::from_millis(100)).await;
     }
 
     return Ok(());
