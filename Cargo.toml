@@ -1,6 +1,6 @@
 [package]
 name = "mcumgr-client"
-version = "0.0.3"
+version = "0.0.4"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -29,3 +29,7 @@ serde_repr = "0.1"
 serialport = "4.2"
 sha2 = "0.10"
 simplelog = "0.12"
+btleplug = "0.11"
+tokio = { version = "1.29", features = ["full"] }
+uuid = "1.4"
+futures = "0.3"

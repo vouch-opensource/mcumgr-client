@@ -1,11 +1,27 @@
 // Copyright © 2023 Vouch.io LLC
 
+use btleplug::api::ValueNotification;
 use clap::Parser;
 use log::{error, info, LevelFilter};
 use serialport::available_ports;
 use simplelog::{ColorChoice, Config, SimpleLogger, TermLogger, TerminalMode};
 use std::env;
 use std::process;
+
+use btleplug::api::Characteristic;
+use btleplug::api::{
+    bleuuid::uuid_from_u16, Central, CentralEvent, Manager as _, Peripheral as _, ScanFilter,
+    WriteType,
+};
+use btleplug::platform::{Adapter, Manager, Peripheral};
+use futures::stream::StreamExt;
+use rand::{thread_rng, Rng};
+use std::error::Error;
+use std::thread;
+use std::time::Duration;
+use tokio::runtime::Runtime;
+use tokio::time;
+use uuid::Uuid;
 
 pub mod cli;
 pub mod default;
@@ -18,7 +34,82 @@ use crate::cli::*;
 use crate::default::*;
 use crate::image::*;
 
-fn main() {
+async fn find_light(central: &Adapter) -> Option<Peripheral> {
+    for p in central.peripherals().await.unwrap() {
+        if p.properties()
+            .await
+            .unwrap()
+            .unwrap()
+            .local_name
+            .iter()
+            .any(|name| name.contains("VKA"))
+        {
+            return Some(p);
+        }
+    }
+    None
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
+    let manager = Manager::new().await.unwrap();
+
+    // get the first bluetooth adapter
+    let adapters = manager.adapters().await?;
+    let central = adapters.into_iter().nth(0).unwrap();
+
+    // start scanning for devices
+    central.start_scan(ScanFilter::default()).await?;
+    // instead of waiting, you can use central.events() to get a stream which will
+    // notify you of new devices, for an example of that see examples/event_driven_discovery.rs
+    time::sleep(Duration::from_secs(2)).await;
+
+    // find the device we're interested in
+    let light = find_light(&central).await.unwrap();
+
+    // connect to the device
+    light.connect().await?;
+    println!("VKA connected");
+
+    // discover services and characteristics
+    light.discover_services().await.unwrap();
+    //time::sleep(Duration::from_secs(5)).await;
+
+    // get a list of the peripheral's characteristics.
+    let characteristics = light.characteristics();
+
+    // subscribe to the SMP characteristic and write the image list command
+    let char_uuid = Uuid::parse_str("DA2E7828-FBCE-4E01-AE9E-261174997C48").unwrap();
+    let desired_char = characteristics
+        .into_iter()
+        .find(|c| c.uuid == char_uuid)
+        .unwrap();
+    light.subscribe(&desired_char).await.unwrap();
+    let bytes_to_write = vec![0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x80, 0x00, 0xa0];
+    light
+        .write(&desired_char, &bytes_to_write, WriteType::WithoutResponse)
+        .await
+        .unwrap();
+
+        // show the reponse
+    let mut notification_stream = light.notifications().await.unwrap();
+    tokio::spawn(async move {
+        while let Some(notification) = notification_stream.next().await {
+            match notification {
+                ValueNotification { uuid, value, .. } if uuid == desired_char.uuid || true => {
+                    println!("Received data: {:?}", value);
+                }
+                _ => {}
+            }
+        }
+    });
+
+    loop {
+        time::sleep(Duration::from_secs(1)).await;
+    }
+
+    return Ok(());
+
     // show program name, version and copyright
     let name = env!("CARGO_PKG_NAME");
     let version = env!("CARGO_PKG_VERSION");
@@ -115,4 +206,6 @@ fn main() {
         error!("Error: {}", e);
         process::exit(1);
     }
+
+    Ok(())
 }
