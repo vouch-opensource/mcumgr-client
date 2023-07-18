@@ -1,8 +1,8 @@
 // Copyright © 2023 Vouch.io LLC
 
-use anyhow::{bail, Error, Result};
+use anyhow::{Error, Result};
 use base64::{engine::general_purpose, Engine as _};
-use byteorder::{BigEndian, ByteOrder, WriteBytesExt};
+use byteorder::{BigEndian, WriteBytesExt};
 use crc16::*;
 use hex;
 use lazy_static::lazy_static;
@@ -15,14 +15,6 @@ use std::sync::atomic::{AtomicU8, Ordering};
 
 use crate::interface::Interface;
 use crate::nmp_hdr::*;
-
-fn expect_byte(interface: &mut dyn Interface, b: u8) -> Result<(), Error> {
-    let read = interface.read_byte()?;
-    if read != b {
-        bail!("read error, expected: {}, read: {}", b, read);
-    }
-    Ok(())
-}
 
 // thread-safe counter, initialized with a random value on first call
 pub fn next_seq_id() -> u8 {
@@ -101,64 +93,9 @@ pub fn transceive(
     // write request
     interface.write_all(&data)?;
 
-    // read result
-    let mut bytes_read = 0;
-    let mut expected_len = 0;
-    let mut result: Vec<u8> = Vec::new();
-    loop {
-        // first wait for the chunk start marker
-        if bytes_read == 0 {
-            expect_byte(&mut *interface, 6)?;
-            expect_byte(&mut *interface, 9)?;
-        } else {
-            expect_byte(&mut *interface, 4)?;
-            expect_byte(&mut *interface, 20)?;
-        }
 
-        // next read until newline
-        loop {
-            let b = interface.read_byte()?;
-            if b == 0xa {
-                break;
-            } else {
-                result.push(b);
-                bytes_read += 1;
-            }
-        }
+    let data = interface.read_and_decode()?;
 
-        // try to extract length
-        let decoded: Vec<u8> = general_purpose::STANDARD.decode(&result)?;
-        if expected_len == 0 {
-            let len = BigEndian::read_u16(&decoded);
-            if len > 0 {
-                expected_len = len as usize;
-            }
-            debug!("expected length: {}", expected_len);
-        }
-
-        // stop when done
-        if decoded.len() >= expected_len {
-            break;
-        }
-    }
-
-    // decode base64
-    debug!("result string: {}", String::from_utf8(result.clone())?);
-    let decoded: Vec<u8> = general_purpose::STANDARD.decode(&result)?;
-
-    // verify length: must be the decoded length, minus the 2 bytes to encode the length
-    let len = BigEndian::read_u16(&decoded) as usize;
-    if len != decoded.len() - 2 {
-        bail!("wrong chunk length");
-    }
-
-    // verify checksum
-    let data = decoded[2..decoded.len() - 2].to_vec();
-    let read_checksum = BigEndian::read_u16(&decoded[decoded.len() - 2..]);
-    let calculated_checksum = State::<XMODEM>::calculate(&data);
-    if read_checksum != calculated_checksum {
-        bail!("wrong checksum");
-    }
 
     // read header
     let mut cursor = Cursor::new(&data);

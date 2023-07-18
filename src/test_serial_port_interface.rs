@@ -11,6 +11,7 @@ use std::time::Duration;
 
 use crate::interface::Interface;
 use crate::nmp_hdr::*;
+use crate::serial_port_interface::serial_port_read_and_decode;
 use crate::transfer::encode_request;
 
 pub struct TestSerialPortInterface {
@@ -126,5 +127,10 @@ impl Interface for TestSerialPortInterface {
         thread::sleep(Duration::from_millis((buf.len() / 10) as u64));
 
         Ok(())
+    }
+
+    fn read_and_decode(&mut self) -> anyhow::Result<Vec<u8>> {
+        let data = serial_port_read_and_decode(self)?;
+        Ok(data)
     }
 }

@@ -8,4 +8,6 @@ pub trait Interface {
     fn read_byte(&mut self) -> Result<u8, Error>;
 
     fn write_all(&mut self, buf: &[u8]) -> Result<(), std::io::Error>;
+
+    fn read_and_decode(&mut self) -> Result<Vec<u8>, anyhow::Error>;
 }
