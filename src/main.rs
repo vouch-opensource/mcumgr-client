@@ -1,8 +1,6 @@
 // Copyright © 2023 Vouch.io LLC
 
 use anyhow::Result;
-use btleplug::api::Characteristic;
-use btleplug::api::ValueNotification;
 use clap::Parser;
 use log::{error, info, LevelFilter};
 use serialport::available_ports;
@@ -10,128 +8,21 @@ use simplelog::{ColorChoice, Config, SimpleLogger, TermLogger, TerminalMode};
 use std::env;
 use std::process;
 
-use btleplug::api::{Central, CentralEvent, Manager as _, Peripheral as _, ScanFilter, WriteType};
-use btleplug::platform::{Manager, Peripheral};
-use futures::stream::StreamExt;
-use std::time::Duration;
-use tokio::time;
-use tokio::time::timeout;
-use uuid::Uuid;
-
 pub mod cli;
 pub mod default;
 pub mod image;
+pub mod interface;
 pub mod nmp_hdr;
-pub mod test_serial_port;
+pub mod serial_port_interface;
+pub mod test_serial_port_interface;
 pub mod transfer;
 
 use crate::cli::*;
 use crate::default::*;
 use crate::image::*;
 
-async fn connect_light() -> Result<(Peripheral, Characteristic)> {
-    let manager = Manager::new().await?;
-
-    // get the first bluetooth adapter
-    let adapters = manager.adapters().await?;
-    let central = adapters
-        .into_iter()
-        .next()
-        .expect("No Bluetooth adapters found");
-    let desired_name = "VKA";
-
-    let mut found_light = None;
-    let mut events = central.events().await?;
-
-    // start scanning for devices
-            central.start_scan(ScanFilter::default()).await?;
-
-    const TIMEOUT_DURATION: Duration = Duration::from_secs(10);
-    while let Some(event) = timeout(TIMEOUT_DURATION, events.next()).await? {
-        if let CentralEvent::DeviceDiscovered(addr) = event {
-            let peripheral = central.peripheral(&addr).await?;
-            if let Some(properties) = peripheral.properties().await? {
-                if let Some(name) = properties.local_name {
-                    if name == desired_name {
-                        println!("Peripheral found");
-                        found_light = Some(peripheral);
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
-    let light = found_light.expect("Peripheral not found");
-
-    // connect to the device
-    light.connect().await?;
-    println!("VKA connected");
-
-    // Discover services and characteristics
-    light.discover_services().await?;
-
-    // Get a list of the peripheral's characteristics.
-    let characteristics = light.characteristics();
-
-    // Filter the characteristics to find the one you're interested in.
-    let char_uuid = Uuid::parse_str("DA2E7828-FBCE-4E01-AE9E-261174997C48")?;
-    let desired_char = characteristics
-        .into_iter()
-        .find(|c| c.uuid == char_uuid)
-        .expect("SMP characteristic not found");
-
-    // Subscribe to notifications from the characteristic.
-    light.subscribe(&desired_char).await?;
-
-    Ok((light, desired_char))
-}
-
 #[tokio::main]
 async fn main() -> Result<()> {
-    pretty_env_logger::init();
-    const MAX_ATTEMPTS: u32 = 3;
-
-    let mut light = None;
-
-    for attempt in 1..=MAX_ATTEMPTS {
-        match connect_light().await {
-            Ok(l) => {
-                light = Some(l);
-                break;
-            }
-            Err(_) if attempt < MAX_ATTEMPTS => {
-                println!("Attempt #{} failed, retrying...", attempt);
-                time::sleep(Duration::from_secs(1)).await;
-            }
-            Err(e) => {
-                println!("Attempt #{} failed, giving up.", attempt);
-                return Err(e);
-            }
-        }
-    }
-
-    let (light, desired_char) = light.expect("Unable to establish connection");
-
-    // Write bytes to the characteristic.
-    let bytes_to_write = vec![0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x80, 0x00, 0xa0];
-    light
-        .write(&desired_char, &bytes_to_write, WriteType::WithoutResponse)
-        .await?;
-
-    let mut notification_stream = light.notifications().await?;
-    loop {
-        match notification_stream.next().await {
-            Some(ValueNotification { uuid, value, .. }) if uuid == desired_char.uuid => {
-                println!("Received data: {:?}", value);
-                break;
-            }
-            _ => {}
-        }
-    }
-
-    return Ok(());
-
     // show program name, version and copyright
     let name = env!("CARGO_PKG_NAME");
     let version = env!("CARGO_PKG_VERSION");

@@ -18,7 +18,7 @@ pub fn echo(cli: &Cli, message: &String) -> Result<(), Error> {
     info!("echo request");
 
     // open serial port
-    let mut port = open_port(cli)?;
+    let mut interface = open_port(cli)?;
 
     // send request
     let mut map = std::collections::BTreeMap::new();
@@ -32,7 +32,7 @@ pub fn echo(cli: &Cli, message: &String) -> Result<(), Error> {
         &body,
         next_seq_id(),
     )?;
-    let (response_header, response_body) = transceive(&mut *port, data)?;
+    let (response_header, response_body) = transceive(&mut *interface, data)?;
 
     // verify sequence id
     if response_header.seq != request_header.seq {
@@ -57,7 +57,7 @@ pub fn reset(cli: &Cli) -> Result<(), Error> {
     info!("send reset request");
 
     // open serial port
-    let mut port = open_port(cli)?;
+    let mut interface = open_port(cli)?;
 
     // send request
     let body: Vec<u8> =
@@ -70,7 +70,7 @@ pub fn reset(cli: &Cli) -> Result<(), Error> {
         &body,
         next_seq_id(),
     )?;
-    let (response_header, response_body) = transceive(&mut *port, data)?;
+    let (response_header, response_body) = transceive(&mut *interface, data)?;
 
     // verify sequence id
     if response_header.seq != request_header.seq {

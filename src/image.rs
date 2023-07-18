@@ -26,7 +26,7 @@ pub fn list(cli: &Cli) -> Result<(), Error> {
     info!("send image list request");
 
     // open serial port
-    let mut port = open_port(cli)?;
+    let mut interface = open_port(cli)?;
 
     // send request
     let body: Vec<u8> =
@@ -39,7 +39,7 @@ pub fn list(cli: &Cli) -> Result<(), Error> {
         &body,
         next_seq_id(),
     )?;
-    let (response_header, response_body) = transceive(&mut *port, data)?;
+    let (response_header, response_body) = transceive(&mut *interface, data)?;
 
     // verify sequence id
     if response_header.seq != request_header.seq {
@@ -76,7 +76,7 @@ pub fn upload(cli: &Cli, filename: &PathBuf) -> Result<(), Error> {
     info!("flashing to slot {}", slot);
 
     // open serial port
-    let mut port = open_port(cli)?;
+    let mut interface = open_port(cli)?;
 
     // load file
     let data = read(filename)?;
@@ -153,7 +153,7 @@ pub fn upload(cli: &Cli, filename: &PathBuf) -> Result<(), Error> {
             }
 
             // send request
-            let (response_header, response_body) = transceive(&mut *port, chunk)?;
+            let (response_header, response_body) = transceive(&mut *interface, chunk)?;
 
             // verify sequence id
             if response_header.seq != request_header.seq {

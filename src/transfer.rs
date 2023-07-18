@@ -9,21 +9,15 @@ use lazy_static::lazy_static;
 use log::debug;
 use rand::{thread_rng, Rng};
 use serde_cbor;
-use serialport::SerialPort;
 use std::cmp::min;
 use std::io::Cursor;
 use std::sync::atomic::{AtomicU8, Ordering};
 
+use crate::interface::Interface;
 use crate::nmp_hdr::*;
 
-fn read_byte(port: &mut dyn SerialPort) -> Result<u8, Error> {
-    let mut byte = [0u8];
-    port.read(&mut byte)?;
-    Ok(byte[0])
-}
-
-fn expect_byte(port: &mut dyn SerialPort, b: u8) -> Result<(), Error> {
-    let read = read_byte(port)?;
+fn expect_byte(interface: &mut dyn Interface, b: u8) -> Result<(), Error> {
+    let read = interface.read_byte()?;
     if read != b {
         bail!("read error, expected: {}, read: {}", b, read);
     }
@@ -95,17 +89,17 @@ pub fn encode_request(
 }
 
 pub fn transceive(
-    port: &mut dyn SerialPort,
+    interface: &mut dyn Interface,
     data: Vec<u8>,
 ) -> Result<(NmpHdr, serde_cbor::Value), Error> {
     // empty input buffer
-    let to_read = port.bytes_to_read()?;
+    let to_read = interface.bytes_to_read()?;
     for _ in 0..to_read {
-        read_byte(&mut *port)?;
+        interface.read_byte()?;
     }
 
     // write request
-    port.write_all(&data)?;
+    interface.write_all(&data)?;
 
     // read result
     let mut bytes_read = 0;
@@ -114,16 +108,16 @@ pub fn transceive(
     loop {
         // first wait for the chunk start marker
         if bytes_read == 0 {
-            expect_byte(&mut *port, 6)?;
-            expect_byte(&mut *port, 9)?;
+            expect_byte(&mut *interface, 6)?;
+            expect_byte(&mut *interface, 9)?;
         } else {
-            expect_byte(&mut *port, 4)?;
-            expect_byte(&mut *port, 20)?;
+            expect_byte(&mut *interface, 4)?;
+            expect_byte(&mut *interface, 20)?;
         }
 
         // next read until newline
         loop {
-            let b = read_byte(&mut *port)?;
+            let b = interface.read_byte()?;
             if b == 0xa {
                 break;
             } else {

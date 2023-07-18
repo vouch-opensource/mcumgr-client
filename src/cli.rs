@@ -2,10 +2,12 @@
 
 use anyhow::{Context, Error};
 use clap::{Parser, Subcommand};
-use serialport::SerialPort;
 use std::{path::PathBuf, time::Duration};
 
-use crate::test_serial_port::TestSerialPort;
+use crate::{
+    interface::Interface, serial_port_interface::SerialPortInterface,
+    test_serial_port_interface::TestSerialPortInterface,
+};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -57,13 +59,14 @@ pub enum Commands {
     Reset,
 }
 
-pub fn open_port(cli: &Cli) -> Result<Box<dyn SerialPort>, Error> {
+pub fn open_port(cli: &Cli) -> Result<Box<dyn Interface>, Error> {
     if cli.device.to_lowercase() == "test" {
-        Ok(Box::new(TestSerialPort::new()))
+        Ok(Box::new(TestSerialPortInterface::new()))
     } else {
-        serialport::new(&cli.device, cli.baudrate)
+        let serial_port = serialport::new(&cli.device, cli.baudrate)
             .timeout(Duration::from_secs(cli.timeout as u64))
             .open()
-            .with_context(|| format!("failed to open serial port {}", &cli.device))
+            .with_context(|| format!("failed to open serial port {}", &cli.device))?;
+        Ok(Box::new(SerialPortInterface::new(serial_port)))
     }
 }
