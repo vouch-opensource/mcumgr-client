@@ -10,7 +10,7 @@ use serde_json;
 
 use crate::cli::*;
 use crate::nmp_hdr::*;
-use crate::transfer::encode_request;
+use crate::transfer::create_request;
 use crate::transfer::next_seq_id;
 use crate::transfer::transceive;
 
@@ -25,14 +25,14 @@ pub fn echo(cli: &Cli, message: &String) -> Result<(), Error> {
     map.insert("d".to_string(), message);
     let body: Vec<u8> = serde_cbor::to_vec(&map).unwrap();
     let seq_id = next_seq_id();
-    let data = encode_request(
-        cli.linelength,
+    let data = create_request(
         NmpOp::Write,
         NmpGroup::Default,
         NmpIdDefault::Echo as u8,
         &body,
         seq_id,
     )?;
+    let data = interface.encode(&data, cli.linelength)?;
     let (response_header, response_body) = transceive(&mut *interface, data)?;
 
     // verify sequence id
@@ -64,14 +64,14 @@ pub fn reset(cli: &Cli) -> Result<(), Error> {
     let seq_id = next_seq_id();
     let body: Vec<u8> =
         serde_cbor::to_vec(&std::collections::BTreeMap::<String, String>::new()).unwrap();
-    let data = encode_request(
-        cli.linelength,
+    let data = create_request(
         NmpOp::Write,
         NmpGroup::Default,
         NmpIdDefault::Reset as u8,
         &body,
         seq_id,
     )?;
+    let data = interface.encode(&data, cli.linelength)?;
     let (response_header, response_body) = transceive(&mut *interface, data)?;
 
     // verify sequence id

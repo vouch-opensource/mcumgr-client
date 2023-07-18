@@ -11,5 +11,5 @@ pub trait Interface {
 
     fn read_and_decode(&mut self) -> Result<Vec<u8>, anyhow::Error>;
 
-    fn encode(&mut self, buf: &[u8]) -> Result<Vec<u8>, anyhow::Error>;
+    fn encode(&mut self, buf: &[u8], linelength: usize) -> Result<Vec<u8>, anyhow::Error>;
 }

@@ -11,8 +11,9 @@ use std::time::Duration;
 
 use crate::interface::Interface;
 use crate::nmp_hdr::*;
+use crate::serial_port_interface::serial_port_encode;
 use crate::serial_port_interface::serial_port_read_and_decode;
-use crate::transfer::encode_request;
+use crate::transfer::create_request;
 
 pub struct TestSerialPortInterface {
     data: Vec<u8>,
@@ -76,8 +77,7 @@ impl Interface for TestSerialPortInterface {
                 let test_string = "x".repeat(1024);
                 map.insert("test".to_string(), test_string);
                 let body = serde_cbor::to_vec(&map).unwrap();
-                let encoded_response = encode_request(
-                    100,
+                let encoded_response = create_request(
                     NmpOp::ReadRsp,
                     NmpGroup::Image,
                     NmpIdImage::State as u8,
@@ -85,6 +85,7 @@ impl Interface for TestSerialPortInterface {
                     request_header.seq,
                 )
                 .unwrap();
+                let encoded_response = self.encode(&encoded_response, 100).unwrap();
                 self.data.extend_from_slice(&encoded_response);
             }
             id if id == NmpIdImage::Upload as u8 => {
@@ -106,8 +107,7 @@ impl Interface for TestSerialPortInterface {
                 response_map.insert("off", off_value);
 
                 let cbor_body = serde_cbor::to_vec(&response_map).unwrap();
-                let encoded_response = encode_request(
-                    4096,
+                let encoded_response = create_request(
                     NmpOp::WriteRsp,
                     NmpGroup::Image,
                     NmpIdImage::State as u8,
@@ -115,6 +115,7 @@ impl Interface for TestSerialPortInterface {
                     request_header.seq,
                 )
                 .unwrap();
+                let encoded_response = self.encode(&encoded_response, 4096).unwrap();
                 self.data.extend_from_slice(&encoded_response);
             }
             _ => {
@@ -134,7 +135,7 @@ impl Interface for TestSerialPortInterface {
         Ok(data)
     }
 
-    fn encode(&mut self, buf: &[u8]) -> Result<Vec<u8>, anyhow::Error> {
-        todo!()
+    fn encode(&mut self, buf: &[u8], linelength: usize) -> Result<Vec<u8>, anyhow::Error> {
+        serial_port_encode(buf, linelength)
     }
 }

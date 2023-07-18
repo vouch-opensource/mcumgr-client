@@ -3,10 +3,12 @@
 use anyhow::bail;
 use anyhow::Result;
 use base64::{engine::general_purpose, Engine as _};
+use byteorder::WriteBytesExt;
 use byteorder::{BigEndian, ByteOrder};
 use crc16::*;
 use log::debug;
 use serialport::SerialPort;
+use std::cmp::min;
 use std::io::Read;
 use std::io::Write;
 
@@ -83,6 +85,47 @@ pub fn serial_port_read_and_decode(interface: &mut dyn Interface) -> Result<Vec<
     Ok(data)
 }
 
+pub fn serial_port_encode(data: &[u8], linelength: usize) -> Result<Vec<u8>> {
+    // calculate CRC16 of it and append to the request
+    let mut serialized = data.to_vec();
+    let checksum = State::<XMODEM>::calculate(&serialized);
+    serialized.write_u16::<BigEndian>(checksum)?;
+
+    // prepend chunk length
+    let mut len: Vec<u8> = Vec::new();
+    len.write_u16::<BigEndian>(serialized.len() as u16)?;
+    serialized.splice(0..0, len);
+    debug!(
+        "encoded with packet length and checksum: {}",
+        hex::encode(&serialized)
+    );
+
+    // convert to base64
+    let base64_data: Vec<u8> = general_purpose::STANDARD.encode(&serialized).into_bytes();
+    debug!("encoded: {}", String::from_utf8(base64_data.clone())?);
+    let mut data = Vec::<u8>::new();
+
+    // transfer in blocks of max linelength bytes per line
+    let mut written = 0;
+    let totlen = base64_data.len();
+    while written < totlen {
+        // start designator
+        if written == 0 {
+            data.extend_from_slice(&[6, 9]);
+        } else {
+            // TODO: add a configurable sleep for slower devices
+            // thread::sleep(Duration::from_millis(20));
+            data.extend_from_slice(&[4, 20]);
+        }
+        let write_len = min(linelength - 4, totlen - written);
+        data.extend_from_slice(&base64_data[written..written + write_len]);
+        data.push(b'\n');
+        written += write_len;
+    }
+
+    Ok(data)
+}
+
 pub struct SerialPortInterface {
     serial_port: Box<dyn SerialPort>,
 }
@@ -114,7 +157,11 @@ impl Interface for SerialPortInterface {
         Ok(data)
     }
 
-    fn encode(&mut self, buf: &[u8]) -> std::result::Result<Vec<u8>, anyhow::Error> {
-        todo!()
+    fn encode(
+        &mut self,
+        buf: &[u8],
+        linelength: usize,
+    ) -> std::result::Result<Vec<u8>, anyhow::Error> {
+        serial_port_encode(buf, linelength)
     }
 }
