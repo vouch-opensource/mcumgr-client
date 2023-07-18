@@ -147,8 +147,8 @@ impl Interface for SerialPortInterface {
         Ok(byte[0])
     }
 
-    fn write_all(&mut self, buf: &[u8]) -> Result<(), std::io::Error> {
-        self.serial_port.write_all(buf)
+    fn write_all(&mut self, buf: &[u8]) -> Result<(), anyhow::Error> {
+        self.serial_port.write_all(buf).map_err(anyhow::Error::from)
     }
 
     fn read_and_decode(&mut self) -> Result<Vec<u8>> {

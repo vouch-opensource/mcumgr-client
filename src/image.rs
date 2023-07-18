@@ -12,6 +12,7 @@ use serde_cbor;
 use serde_json;
 use sha2::{Digest, Sha256};
 use std::fs::read;
+use std::mem;
 use std::path::PathBuf;
 use std::time::Duration;
 use std::time::Instant;
@@ -94,8 +95,8 @@ pub fn upload(cli: &Cli, filename: &PathBuf) -> Result<(), Error> {
     let start_time = Instant::now();
     loop {
         let off_start = off;
-        let mut try_length = cli.mtu;
-        debug!("try_length: {}", try_length);
+        let mut try_length = cli.mtu - mem::size_of::<NmpHdr>();
+        debug!("try_length for data: {}", try_length);
         let seq_id = next_seq_id();
         loop {
             // get slot

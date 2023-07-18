@@ -14,6 +14,7 @@ pub mod image;
 pub mod interface;
 pub mod nmp_hdr;
 pub mod serial_port_interface;
+pub mod bluetooth_interface;
 pub mod test_serial_port_interface;
 pub mod transfer;
 

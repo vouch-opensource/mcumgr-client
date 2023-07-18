@@ -40,7 +40,7 @@ impl Interface for TestSerialPortInterface {
         Ok(b)
     }
 
-    fn write_all(&mut self, buf: &[u8]) -> Result<(), std::io::Error> {
+    fn write_all(&mut self, buf: &[u8]) -> Result<(), anyhow::Error> {
         let mut cursor = Cursor::new(buf);
         let mut received_data = Vec::new();
 
