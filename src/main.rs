@@ -1,5 +1,7 @@
 // Copyright © 2023 Vouch.io LLC
 
+use anyhow::Result;
+use btleplug::api::Characteristic;
 use btleplug::api::ValueNotification;
 use clap::Parser;
 use log::{error, info, LevelFilter};
@@ -8,19 +10,12 @@ use simplelog::{ColorChoice, Config, SimpleLogger, TermLogger, TerminalMode};
 use std::env;
 use std::process;
 
-use btleplug::api::Characteristic;
-use btleplug::api::{
-    bleuuid::uuid_from_u16, Central, CentralEvent, Manager as _, Peripheral as _, ScanFilter,
-    WriteType,
-};
-use btleplug::platform::{Adapter, Manager, Peripheral};
+use btleplug::api::{Central, CentralEvent, Manager as _, Peripheral as _, ScanFilter, WriteType};
+use btleplug::platform::{Manager, Peripheral};
 use futures::stream::StreamExt;
-use rand::{thread_rng, Rng};
-use std::error::Error;
-use std::thread;
 use std::time::Duration;
-use tokio::runtime::Runtime;
 use tokio::time;
+use tokio::time::timeout;
 use uuid::Uuid;
 
 pub mod cli;
@@ -34,27 +29,31 @@ use crate::cli::*;
 use crate::default::*;
 use crate::image::*;
 
-async fn connect_light() -> Result<Peripheral, Box<dyn Error>> {
-    let manager = Manager::new().await.unwrap();
+async fn connect_light() -> Result<(Peripheral, Characteristic)> {
+    let manager = Manager::new().await?;
 
     // get the first bluetooth adapter
-    let adapters = manager.adapters().await.unwrap();
-    let central = adapters.into_iter().nth(0).unwrap();
-
+    let adapters = manager.adapters().await?;
+    let central = adapters
+        .into_iter()
+        .next()
+        .expect("No Bluetooth adapters found");
     let desired_name = "VKA";
 
     let mut found_light = None;
-    let mut events = central.events().await.unwrap();
+    let mut events = central.events().await?;
 
     // start scanning for devices
-    central.start_scan(ScanFilter::default()).await.unwrap();
+            central.start_scan(ScanFilter::default()).await?;
 
-    while let Some(event) = events.next().await {
+    const TIMEOUT_DURATION: Duration = Duration::from_secs(10);
+    while let Some(event) = timeout(TIMEOUT_DURATION, events.next()).await? {
         if let CentralEvent::DeviceDiscovered(addr) = event {
-            let peripheral = central.peripheral(&addr).await.unwrap();
-            if let Some(properties) = peripheral.properties().await.unwrap() {
+            let peripheral = central.peripheral(&addr).await?;
+            if let Some(properties) = peripheral.properties().await? {
                 if let Some(name) = properties.local_name {
                     if name == desired_name {
+                        println!("Peripheral found");
                         found_light = Some(peripheral);
                         break;
                     }
@@ -63,17 +62,34 @@ async fn connect_light() -> Result<Peripheral, Box<dyn Error>> {
         }
     }
 
-    let light = found_light
-        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::Other, "Device not found"))?;
+    let light = found_light.expect("Peripheral not found");
 
     // connect to the device
     light.connect().await?;
     println!("VKA connected");
-    Ok(light)
+
+    // Discover services and characteristics
+    light.discover_services().await?;
+
+    // Get a list of the peripheral's characteristics.
+    let characteristics = light.characteristics();
+
+    // Filter the characteristics to find the one you're interested in.
+    let char_uuid = Uuid::parse_str("DA2E7828-FBCE-4E01-AE9E-261174997C48")?;
+    let desired_char = characteristics
+        .into_iter()
+        .find(|c| c.uuid == char_uuid)
+        .expect("SMP characteristic not found");
+
+    // Subscribe to notifications from the characteristic.
+    light.subscribe(&desired_char).await?;
+
+    Ok((light, desired_char))
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
+async fn main() -> Result<()> {
+    pretty_env_logger::init();
     const MAX_ATTEMPTS: u32 = 3;
 
     let mut light = None;
@@ -84,7 +100,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 light = Some(l);
                 break;
             }
-            Err(e) if attempt < MAX_ATTEMPTS => {
+            Err(_) if attempt < MAX_ATTEMPTS => {
                 println!("Attempt #{} failed, retrying...", attempt);
                 time::sleep(Duration::from_secs(1)).await;
             }
@@ -95,32 +111,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
     }
 
-    let light = light.expect("Unable to establish connection");
-
-    // Discover services and characteristics
-    light.discover_services().await.unwrap();
-
-    // Get a list of the peripheral's characteristics.
-    let characteristics = light.characteristics();
-
-    // Filter the characteristics to find the one you're interested in.
-    let char_uuid = Uuid::parse_str("DA2E7828-FBCE-4E01-AE9E-261174997C48").unwrap();
-    let desired_char = characteristics
-        .into_iter()
-        .find(|c| c.uuid == char_uuid)
-        .unwrap();
-
-    // Subscribe to notifications from the characteristic.
-    light.subscribe(&desired_char).await.unwrap();
+    let (light, desired_char) = light.expect("Unable to establish connection");
 
     // Write bytes to the characteristic.
-    let bytes_to_write = vec![0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x80, 0x00, 0xa0]; // Replace with the bytes you want to write
+    let bytes_to_write = vec![0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x80, 0x00, 0xa0];
     light
         .write(&desired_char, &bytes_to_write, WriteType::WithoutResponse)
-        .await
-        .unwrap();
+        .await?;
 
-    let mut notification_stream = light.notifications().await.unwrap();
+    let mut notification_stream = light.notifications().await?;
     loop {
         match notification_stream.next().await {
             Some(ValueNotification { uuid, value, .. }) if uuid == desired_char.uuid => {
@@ -129,7 +128,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
             }
             _ => {}
         }
-        time::sleep(Duration::from_millis(100)).await;
     }
 
     return Ok(());
