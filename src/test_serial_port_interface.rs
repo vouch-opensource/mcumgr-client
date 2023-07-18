@@ -76,7 +76,7 @@ impl Interface for TestSerialPortInterface {
                 let test_string = "x".repeat(1024);
                 map.insert("test".to_string(), test_string);
                 let body = serde_cbor::to_vec(&map).unwrap();
-                let (encoded_response, _) = encode_request(
+                let encoded_response = encode_request(
                     100,
                     NmpOp::ReadRsp,
                     NmpGroup::Image,
@@ -106,7 +106,7 @@ impl Interface for TestSerialPortInterface {
                 response_map.insert("off", off_value);
 
                 let cbor_body = serde_cbor::to_vec(&response_map).unwrap();
-                let (encoded_response, _) = encode_request(
+                let encoded_response = encode_request(
                     4096,
                     NmpOp::WriteRsp,
                     NmpGroup::Image,
@@ -132,5 +132,9 @@ impl Interface for TestSerialPortInterface {
     fn read_and_decode(&mut self) -> anyhow::Result<Vec<u8>> {
         let data = serial_port_read_and_decode(self)?;
         Ok(data)
+    }
+
+    fn encode(&mut self, buf: &[u8]) -> Result<Vec<u8>, anyhow::Error> {
+        todo!()
     }
 }

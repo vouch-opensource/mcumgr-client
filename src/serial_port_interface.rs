@@ -2,13 +2,13 @@
 
 use anyhow::bail;
 use anyhow::Result;
-use serialport::SerialPort;
-use std::io::Read;
-use std::io::Write;
 use base64::{engine::general_purpose, Engine as _};
 use byteorder::{BigEndian, ByteOrder};
 use crc16::*;
 use log::debug;
+use serialport::SerialPort;
+use std::io::Read;
+use std::io::Write;
 
 use crate::interface::Interface;
 
@@ -112,5 +112,9 @@ impl Interface for SerialPortInterface {
         let data = serial_port_read_and_decode(self)?;
 
         Ok(data)
+    }
+
+    fn encode(&mut self, buf: &[u8]) -> std::result::Result<Vec<u8>, anyhow::Error> {
+        todo!()
     }
 }

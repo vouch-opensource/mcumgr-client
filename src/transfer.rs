@@ -31,7 +31,7 @@ pub fn encode_request(
     id: u8,
     body: &Vec<u8>,
     seq_id: u8,
-) -> Result<(Vec<u8>, NmpHdr), Error> {
+) -> Result<Vec<u8>, Error> {
     // create request
     let mut request_header = NmpHdr::new_req(op, group, id);
     request_header.seq = seq_id;
@@ -77,7 +77,7 @@ pub fn encode_request(
         written += write_len;
     }
 
-    Ok((data, request_header))
+    Ok(data)
 }
 
 pub fn transceive(
@@ -93,9 +93,7 @@ pub fn transceive(
     // write request
     interface.write_all(&data)?;
 
-
     let data = interface.read_and_decode()?;
-
 
     // read header
     let mut cursor = Cursor::new(&data);

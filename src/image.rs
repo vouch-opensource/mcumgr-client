@@ -31,18 +31,19 @@ pub fn list(cli: &Cli) -> Result<(), Error> {
     // send request
     let body: Vec<u8> =
         serde_cbor::to_vec(&std::collections::BTreeMap::<String, String>::new()).unwrap();
-    let (data, request_header) = encode_request(
+    let seq_id = next_seq_id();
+    let data = encode_request(
         cli.linelength,
         NmpOp::Read,
         NmpGroup::Image,
         NmpIdImage::State as u8,
         &body,
-        next_seq_id(),
+        seq_id,
     )?;
     let (response_header, response_body) = transceive(&mut *interface, data)?;
 
     // verify sequence id
-    if response_header.seq != request_header.seq {
+    if response_header.seq != seq_id {
         bail!("wrong sequence number");
     }
 
@@ -129,7 +130,7 @@ pub fn upload(cli: &Cli, filename: &PathBuf) -> Result<(), Error> {
 
             // convert to bytes with CBOR
             let body = serde_cbor::to_vec(&req)?;
-            let (chunk, request_header) = encode_request(
+            let chunk = encode_request(
                 cli.linelength,
                 NmpOp::Write,
                 NmpGroup::Image,
@@ -156,7 +157,7 @@ pub fn upload(cli: &Cli, filename: &PathBuf) -> Result<(), Error> {
             let (response_header, response_body) = transceive(&mut *interface, chunk)?;
 
             // verify sequence id
-            if response_header.seq != request_header.seq {
+            if response_header.seq != seq_id {
                 bail!("wrong sequence number");
             }
 

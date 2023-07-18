@@ -10,4 +10,6 @@ pub trait Interface {
     fn write_all(&mut self, buf: &[u8]) -> Result<(), std::io::Error>;
 
     fn read_and_decode(&mut self) -> Result<Vec<u8>, anyhow::Error>;
+
+    fn encode(&mut self, buf: &[u8]) -> Result<Vec<u8>, anyhow::Error>;
 }
