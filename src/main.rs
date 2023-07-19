@@ -109,10 +109,10 @@ async fn main() -> Result<()> {
 
     // execute command
     let result = match &cli.command {
-        Commands::List => list(&cli),
-        Commands::Upload { filename } => upload(&cli, filename),
-        Commands::Echo { message } => echo(&cli, message),
-        Commands::Reset => reset(&cli),
+        Commands::List => list(&cli).await,
+        Commands::Upload { filename } => upload(&cli, filename).await,
+        Commands::Echo { message } => echo(&cli, message).await,
+        Commands::Reset => reset(&cli).await,
     };
 
     // show error, if failed

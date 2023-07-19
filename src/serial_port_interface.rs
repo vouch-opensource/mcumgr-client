@@ -11,18 +11,19 @@ use serialport::SerialPort;
 use std::cmp::min;
 use std::io::Read;
 use std::io::Write;
+use async_trait::async_trait;
 
 use crate::interface::Interface;
 
-fn expect_byte(interface: &mut dyn Interface, b: u8) -> Result<(), anyhow::Error> {
-    let read = interface.read_byte()?;
+async fn expect_byte(interface: &mut dyn Interface, b: u8) -> Result<(), anyhow::Error> {
+    let read = interface.read_byte().await?;
     if read != b {
         bail!("read error, expected: {}, read: {}", b, read);
     }
     Ok(())
 }
 
-pub fn serial_port_read_and_decode(interface: &mut dyn Interface) -> Result<Vec<u8>> {
+pub async fn serial_port_read_and_decode(interface: &mut dyn Interface) -> Result<Vec<u8>> {
     // read result
     let mut bytes_read = 0;
     let mut expected_len = 0;
@@ -30,16 +31,16 @@ pub fn serial_port_read_and_decode(interface: &mut dyn Interface) -> Result<Vec<
     loop {
         // first wait for the chunk start marker
         if bytes_read == 0 {
-            expect_byte(&mut *interface, 6)?;
-            expect_byte(&mut *interface, 9)?;
+            expect_byte(&mut *interface, 6).await?;
+            expect_byte(&mut *interface, 9).await?;
         } else {
-            expect_byte(&mut *interface, 4)?;
-            expect_byte(&mut *interface, 20)?;
+            expect_byte(&mut *interface, 4).await?;
+            expect_byte(&mut *interface, 20).await?;
         }
 
         // next read until newline
         loop {
-            let b = interface.read_byte()?;
+            let b = interface.read_byte().await?;
             if b == 0xa {
                 break;
             } else {
@@ -136,25 +137,24 @@ impl SerialPortInterface {
     }
 }
 
+#[async_trait]
 impl Interface for SerialPortInterface {
     fn bytes_to_read(&self) -> Result<u32, serialport::Error> {
         self.serial_port.bytes_to_read()
     }
 
-    fn read_byte(self: &mut SerialPortInterface) -> Result<u8, serialport::Error> {
+    async fn read_byte(self: &mut SerialPortInterface) -> Result<u8, serialport::Error> {
         let mut byte = [0u8];
         self.serial_port.read(&mut byte)?;
         Ok(byte[0])
     }
 
-    fn write_all(&mut self, buf: &[u8]) -> Result<(), anyhow::Error> {
+    async fn write_all(&mut self, buf: &[u8]) -> Result<(), anyhow::Error> {
         self.serial_port.write_all(buf).map_err(anyhow::Error::from)
     }
 
-    fn read_and_decode(&mut self) -> Result<Vec<u8>> {
-        let data = serial_port_read_and_decode(self)?;
-
-        Ok(data)
+    async fn read_and_decode(&mut self) -> Result<Vec<u8>> {
+        serial_port_read_and_decode(&mut *self).await
     }
 
     fn encode(

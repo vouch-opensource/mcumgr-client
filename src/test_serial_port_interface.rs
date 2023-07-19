@@ -8,6 +8,7 @@ use serialport::Error;
 use std::io::Cursor;
 use std::thread;
 use std::time::Duration;
+use async_trait::async_trait;
 
 use crate::interface::Interface;
 use crate::nmp_hdr::*;
@@ -29,18 +30,19 @@ impl TestSerialPortInterface {
     }
 }
 
+#[async_trait]
 impl Interface for TestSerialPortInterface {
     fn bytes_to_read(&self) -> Result<u32, Error> {
         Ok((self.data.len() - self.position) as u32)
     }
 
-    fn read_byte(self: &mut TestSerialPortInterface) -> Result<u8, Error> {
+    async fn read_byte(self: &mut TestSerialPortInterface) -> Result<u8, Error> {
         let b = self.data[self.position];
         self.position += 1;
         Ok(b)
     }
 
-    fn write_all(&mut self, buf: &[u8]) -> Result<(), anyhow::Error> {
+    async fn write_all(&mut self, buf: &[u8]) -> Result<(), anyhow::Error> {
         let mut cursor = Cursor::new(buf);
         let mut received_data = Vec::new();
 
@@ -130,11 +132,11 @@ impl Interface for TestSerialPortInterface {
         Ok(())
     }
 
-    fn read_and_decode(&mut self) -> anyhow::Result<Vec<u8>> {
-        let data = serial_port_read_and_decode(self)?;
+    async fn read_and_decode(&mut self) -> anyhow::Result<Vec<u8>> {
+        let data = serial_port_read_and_decode(self).await?;
         Ok(data)
     }
-
+    
     fn encode(&mut self, buf: &[u8], linelength: usize) -> Result<Vec<u8>, anyhow::Error> {
         serial_port_encode(buf, linelength)
     }

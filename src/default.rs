@@ -14,7 +14,7 @@ use crate::transfer::create_request;
 use crate::transfer::next_seq_id;
 use crate::transfer::transceive;
 
-pub fn echo(cli: &Cli, message: &String) -> Result<(), Error> {
+pub async fn echo(cli: &Cli, message: &String) -> Result<(), Error> {
     info!("echo request");
 
     // open serial port
@@ -33,7 +33,7 @@ pub fn echo(cli: &Cli, message: &String) -> Result<(), Error> {
         seq_id,
     )?;
     let data = interface.encode(&data, cli.linelength)?;
-    let (response_header, response_body) = transceive(&mut *interface, data)?;
+    let (response_header, response_body) = transceive(&mut *interface, data).await?;
 
     // verify sequence id
     if response_header.seq != seq_id {
@@ -54,7 +54,7 @@ pub fn echo(cli: &Cli, message: &String) -> Result<(), Error> {
     Ok(())
 }
 
-pub fn reset(cli: &Cli) -> Result<(), Error> {
+pub async fn reset(cli: &Cli) -> Result<(), Error> {
     info!("send reset request");
 
     // open serial port
@@ -72,7 +72,7 @@ pub fn reset(cli: &Cli) -> Result<(), Error> {
         seq_id,
     )?;
     let data = interface.encode(&data, cli.linelength)?;
-    let (response_header, response_body) = transceive(&mut *interface, data)?;
+    let (response_header, response_body) = transceive(&mut *interface, data).await?;
 
     // verify sequence id
     if response_header.seq != seq_id {

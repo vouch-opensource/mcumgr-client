@@ -37,20 +37,20 @@ pub fn create_request(
     Ok(serialized)
 }
 
-pub fn transceive(
+pub async fn transceive(
     interface: &mut dyn Interface,
     data: Vec<u8>,
 ) -> Result<(NmpHdr, serde_cbor::Value), Error> {
     // empty input buffer
     let to_read = interface.bytes_to_read()?;
     for _ in 0..to_read {
-        interface.read_byte()?;
+        interface.read_byte().await?;
     }
 
     // write request
-    interface.write_all(&data)?;
+    interface.write_all(&data).await?;
 
-    let data = interface.read_and_decode()?;
+    let data = interface.read_and_decode().await?;
 
     // read header
     let mut cursor = Cursor::new(&data);

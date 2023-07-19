@@ -23,7 +23,7 @@ use crate::transfer::create_request;
 use crate::transfer::next_seq_id;
 use crate::transfer::transceive;
 
-pub fn list(cli: &Cli) -> Result<(), Error> {
+pub async fn list(cli: &Cli) -> Result<(), Error> {
     info!("send image list request");
 
     // open serial port
@@ -41,7 +41,7 @@ pub fn list(cli: &Cli) -> Result<(), Error> {
         seq_id,
     )?;
     let data = interface.encode(&data, cli.linelength)?;
-    let (response_header, response_body) = transceive(&mut *interface, data)?;
+    let (response_header, response_body) = transceive(&mut *interface, data).await?;
 
     // verify sequence id
     if response_header.seq != seq_id {
@@ -62,7 +62,7 @@ pub fn list(cli: &Cli) -> Result<(), Error> {
     Ok(())
 }
 
-pub fn upload(cli: &Cli, filename: &PathBuf) -> Result<(), Error> {
+pub async fn upload(cli: &Cli, filename: &PathBuf) -> Result<(), Error> {
     let filename_string = filename.to_string_lossy();
     info!("upload file: {}", filename_string);
 
@@ -155,7 +155,7 @@ pub fn upload(cli: &Cli, filename: &PathBuf) -> Result<(), Error> {
             }
 
             // send request
-            let (response_header, response_body) = transceive(&mut *interface, chunk)?;
+            let (response_header, response_body) = transceive(&mut *interface, chunk).await?;
 
             // verify sequence id
             if response_header.seq != seq_id {
