@@ -58,12 +58,11 @@ jobs:
         run: cargo build --release --target x86_64-apple-darwin
 
       - name: Make aarch64 zip
-        run: |
-          mkdir mcumgr-client-macos-aarch64
-          cp target/aarch64-apple-darwin/release/mcumgr-client mcumgr-client-macos-aarch64/mcumgr-client
-          cp LICENSE mcumgr-client-macos-aarch64/LICENSE
-          cp README.md mcumgr-client-macos-aarch64/README.md
-          zip mcumgr-client-macos-aarch64
+        run: >
+          zip mcumgr-client-macos-aarch64.zip
+          target/aarch64-apple-darwin/release/mcumgr-client
+          LICENSE
+          README.md
 
       - name: Upload aarch64 to Release
         uses: svenstaro/upload-release-action@v2
