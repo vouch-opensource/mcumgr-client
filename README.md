@@ -2,7 +2,19 @@
 
 This is a Rust program to run mcumgr commands, used for example for Zephyr, for uploading firmware updates from a PC to an embedded device. It is an alternative to [the mcumgr Go program](https://github.com/apache/mynewt-mcumgr-cli).
 
-## Prerequisites
+## Download
+
+Released builds for x86-64 Windows, Linux, and MacOS are [here](https://github.com/vouch-opensource/mcumgr-client/releases).
+
+Example download:
+```
+wget https://github.com/vouch-opensource/mcumgr-client/releases/latest/download/mcumgr-client-linux-x86.zip
+wget -O - https://github.com/vouch-opensource/mcumgr-client/releases/latest/download/mcumgr-client-linux-x86.zip.sha256sum | sha256sum --check
+unzip mcumgr-client-linux-x86.zip -d mcumgr-client
+```
+
+## Build Dependencies
+
 Install Rust:
 
 Recommended is with [rustup](https://www.rust-lang.org/tools/install), because then it is easy to keep it up to date.
