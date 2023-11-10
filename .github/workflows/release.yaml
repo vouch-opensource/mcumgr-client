@@ -68,12 +68,26 @@ jobs:
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: mcumgr-client-macos-aarch64
+          file: mcumgr-client-macos-aarch64.zip
           tag: ${{ github.ref }}
-      
+
       - name: Combine Binaries into Universal Binary
         run: >
           lipo -create -output 
           "target/universal/release/mcumgr-client"
           "target/x86_64-apple-darwin/release/mcumgr-client"
           "target/aarch64-apple-darwin/release/mcumgr-client"
+
+      - name: Make universal zip
+        run: >
+          zip mcumgr-client-macos-universal.zip
+          target/universal/release/mcumgr-client
+          LICENSE
+          README.md
+
+      - name: Upload aarch64 to Release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: mcumgr-client-macos-universal.zip
+          tag: ${{ github.ref }}
