@@ -86,7 +86,7 @@ jobs:
           LICENSE
           README.md
 
-      - name: Upload aarch64 to Release
+      - name: Upload universal to Release
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
