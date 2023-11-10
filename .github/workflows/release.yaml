@@ -10,7 +10,7 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  release:
+  release-x86:
     name: ${{ matrix.target }}
     runs-on: ubuntu-latest
     strategy:
@@ -38,3 +38,43 @@ jobs:
         ARCHIVE_TYPES: ${{ matrix.archive }}
         ARCHIVE_NAME: ${{ matrix.archive_name }}
         EXTRA_FILES: "README.md LICENSE"
+
+  release-macos-universal:
+    name: macos-universal
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: aarch64-apple-darwin
+
+      - name: Build aarch64
+        run: cargo build --release --target aarch64-apple-darwin
+
+      - name: Build x86
+        run: cargo build --release --target x86_64-apple-darwin
+
+      - name: Make aarch64 zip
+        run: |
+          mkdir mcumgr-client-macos-aarch64
+          cp target/aarch64-apple-darwin/release/mcumgr-client mcumgr-client-macos-aarch64/mcumgr-client
+          cp LICENSE mcumgr-client-macos-aarch64/LICENSE
+          cp README.md mcumgr-client-macos-aarch64/README.md
+          zip mcumgr-client-macos-aarch64
+
+      - name: Upload aarch64 to Release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: mcumgr-client-macos-aarch64
+          tag: ${{ github.ref }}
+      
+      - name: Combine Binaries into Universal Binary
+        run: >
+          lipo -create -output 
+          "target/universal/release/mcumgr-client"
+          "target/x86_64-apple-darwin/release/mcumgr-client"
+          "target/aarch64-apple-darwin/release/mcumgr-client"
