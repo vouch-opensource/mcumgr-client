@@ -19,20 +19,22 @@ jobs:
         include:
           - target: x86_64-pc-windows-gnu
             archive: zip
+            archive_name: mcumgr-client-windows-x86.zip
           - target: x86_64-unknown-linux-musl
-            archive: tar.gz tar.xz tar.zst
+            archive: zip
+            archive_name: mcumgr-client-linux-x86
           - target: x86_64-apple-darwin
             archive: zip
+            archive_name: mcumgr-client-macos-x86
 
     steps:
     - uses: actions/checkout@v4
-    # - name: Install Linux dependencies
-    #   if: matrix.os == 'ubuntu-latest'
-    #   run: sudo apt install libudev-dev
     - name: Build & Release
       uses: rust-build/rust-build.action@v1.4.4
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         RUSTTARGET: ${{ matrix.target }}
+        ARCHIVE_TYPES: ${{ matrix.archive }}
+        ARCHIVE_NAME: ${{ matrix.archive_name }}
         EXTRA_FILES: "README.md LICENSE"
