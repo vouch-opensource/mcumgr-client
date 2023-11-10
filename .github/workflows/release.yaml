@@ -72,6 +72,7 @@ jobs:
           tag: ${{ github.ref }}
 
       - name: Combine Binaries into Universal Binary
+        run: mkdir target/universal/release
         run: >
           lipo -create -output 
           "target/universal/release/mcumgr-client"
