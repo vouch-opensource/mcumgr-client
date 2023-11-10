@@ -19,7 +19,7 @@ jobs:
         include:
           - target: x86_64-pc-windows-gnu
             archive: zip
-            archive_name: mcumgr-client-windows-x86.zip
+            archive_name: mcumgr-client-windows-x86
           - target: x86_64-unknown-linux-musl
             archive: zip
             archive_name: mcumgr-client-linux-x86
