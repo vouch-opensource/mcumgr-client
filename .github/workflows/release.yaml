@@ -71,7 +71,7 @@ jobs:
           file: mcumgr-client-macos-aarch64.zip
           tag: ${{ github.ref }}
 
-      - run: mkdir target/universal/release
+      - run: mkdir -p target/universal/release
       - name: Combine Binaries into Universal Binary
         run: >
           lipo -create -output 
