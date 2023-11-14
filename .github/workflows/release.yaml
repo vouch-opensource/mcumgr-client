@@ -1,0 +1,115 @@
+name: Release
+permissions:
+  contents: write
+
+on:
+  release:
+    types: [published]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  release-x86:
+    name: ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-pc-windows-gnu
+            archive_name: mcumgr-client-windows-x86
+            file_extension: .exe
+          - target: x86_64-unknown-linux-musl
+            archive_name: mcumgr-client-linux-x86
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: sudo apt install mingw-w64
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable
+        targets: x86_64-pc-windows-gnu, x86_64-unknown-linux-musl
+
+    - name: Build
+      run: cargo build --release --target ${{ matrix.target }}
+
+    - name: Make zip
+      run: |
+        mkdir ${{ matrix.archive_name }}
+        cp README.md ${{ matrix.archive_name }}
+        cp LICENSE ${{ matrix.archive_name }}
+        cp target/${{ matrix.target }}/release/mcumgr-client${{ matrix.file_extension }} ${{ matrix.archive_name }}
+        zip -r ${{ matrix.archive_name }}.zip ${{ matrix.archive_name }}
+
+    - name: Make SHA256 checksum
+      run: sha256sum ${{ matrix.archive_name }}.zip > ${{ matrix.archive_name }}.zip.sha256sum
+
+    - name: Upload zip to Release
+      uses: svenstaro/upload-release-action@v2
+      with:
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        file: ${{ matrix.archive_name }}.zip
+        tag: ${{ github.ref }}
+
+    - name: Upload SHA256 to Release
+      uses: svenstaro/upload-release-action@v2
+      with:
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        file: ${{ matrix.archive_name }}.zip.sha256sum
+        tag: ${{ github.ref }}  
+
+  release-macos-universal:
+    name: macos-universal
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: aarch64-apple-darwin, x86_64-apple-darwin
+
+      - name: Build aarch64
+        run: cargo build --release --target aarch64-apple-darwin
+
+      - name: Build x86
+        run: cargo build --release --target x86_64-apple-darwin
+
+      - run: mkdir -p target/universal/release
+      - name: Combine Binaries into Universal Binary
+        run: >
+          lipo -create -output 
+          "target/universal/release/mcumgr-client"
+          "target/x86_64-apple-darwin/release/mcumgr-client"
+          "target/aarch64-apple-darwin/release/mcumgr-client"
+
+      - name: Make universal zip
+        run: |
+          mkdir mcumgr-client-macos-universal
+          cp README.md mcumgr-client-macos-universal
+          cp LICENSE mcumgr-client-macos-universal
+          cp target/aarch64-apple-darwin/release/mcumgr-client mcumgr-client-macos-universal
+          zip -r mcumgr-client-macos-universal.zip mcumgr-client-macos-universal
+
+      - name: Make SHA256 checksum
+        run: shasum -a 256 mcumgr-client-macos-universal.zip > mcumgr-client-macos-universal.zip.sha256sum
+
+      - name: Upload universal to Release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: mcumgr-client-macos-universal.zip
+          tag: ${{ github.ref }}
+
+      - name: Upload SHA256 to Release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: mcumgr-client-macos-universal.zip.sha256sum
+          tag: ${{ github.ref }}  
