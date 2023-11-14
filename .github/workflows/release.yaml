@@ -38,7 +38,7 @@ jobs:
     - name: Build
       run: cargo build --release --target ${{ matrix.target }}
 
-    - name: Make zips
+    - name: Make zip
       run: |
         mkdir ${{ matrix.archive_name }}
         cp README.md ${{ matrix.archive_name }}
@@ -98,7 +98,7 @@ jobs:
           zip -r mcumgr-client-macos-universal.zip mcumgr-client-macos-universal
 
       - name: Make SHA256 checksum
-        run: sha256sum mcumgr-client-macos-universal.zip > mcumgr-client-macos-universal.zip.sha256sum
+        run: shasum -a 256 mcumgr-client-macos-universal.zip > mcumgr-client-macos-universal.zip.sha256sum
 
       - name: Upload universal to Release
         uses: svenstaro/upload-release-action@v2
