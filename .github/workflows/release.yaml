@@ -94,7 +94,7 @@ jobs:
           mkdir mcumgr-client-macos-universal
           cp README.md mcumgr-client-macos-universal
           cp LICENSE mcumgr-client-macos-universal
-          cp target/aarch64-apple-darwin/release/mcumgr-client mcumgr-client-macos-universal
+          cp target/universal/release/mcumgr-client mcumgr-client-macos-universal
           zip -r mcumgr-client-macos-universal.zip mcumgr-client-macos-universal
 
       - name: Make SHA256 checksum
