@@ -19,6 +19,7 @@ jobs:
         include:
           - target: x86_64-pc-windows-gnu
             archive_name: mcumgr-client-windows-x86
+            file_extension: .exe
           - target: x86_64-unknown-linux-musl
             archive_name: mcumgr-client-linux-x86
 
@@ -42,15 +43,25 @@ jobs:
         mkdir ${{ matrix.archive_name }}
         cp README.md ${{ matrix.archive_name }}
         cp LICENSE ${{ matrix.archive_name }}
-        cp target/${{ matrix.target }}/release/mcumgr-client ${{ matrix.archive_name }}
+        cp target/${{ matrix.target }}/release/mcumgr-client${{ matrix.file_extension }} ${{ matrix.archive_name }}
         zip -r ${{ matrix.archive_name }}.zip ${{ matrix.archive_name }}
 
-    - name: Upload zips to Release
+    - name: Make SHA256 checksum
+      run: sha256sum ${{ matrix.archive_name }}.zip > ${{ matrix.archive_name }}.zip.sha256sum
+
+    - name: Upload zip to Release
       uses: svenstaro/upload-release-action@v2
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         file: ${{ matrix.archive_name }}.zip
-        tag: ${{ github.ref }}    
+        tag: ${{ github.ref }}
+
+    - name: Upload SHA256 to Release
+      uses: svenstaro/upload-release-action@v2
+      with:
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        file: ${{ matrix.archive_name }}.zip.sha256sum
+        tag: ${{ github.ref }}  
 
   release-macos-universal:
     name: macos-universal
@@ -86,9 +97,19 @@ jobs:
           cp target/aarch64-apple-darwin/release/mcumgr-client mcumgr-client-macos-universal
           zip -r mcumgr-client-macos-universal.zip mcumgr-client-macos-universal
 
+      - name: Make SHA256 checksum
+        run: sha256sum mcumgr-client-macos-universal.zip > mcumgr-client-macos-universal.zip.sha256sum
+
       - name: Upload universal to Release
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: mcumgr-client-macos-universal.zip
           tag: ${{ github.ref }}
+
+      - name: Upload SHA256 to Release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: mcumgr-client-macos-universal.zip.sha256sum
+          tag: ${{ github.ref }}  
