@@ -10,7 +10,7 @@ Example download:
 ```
 wget https://github.com/vouch-opensource/mcumgr-client/releases/latest/download/mcumgr-client-linux-x86.zip
 wget -O - https://github.com/vouch-opensource/mcumgr-client/releases/latest/download/mcumgr-client-linux-x86.zip.sha256sum | sha256sum --check
-unzip mcumgr-client-linux-x86.zip -d mcumgr-client
+unzip mcumgr-client-linux-x86.zip
 ```
 
 ## Build Dependencies
