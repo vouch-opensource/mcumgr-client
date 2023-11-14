@@ -18,26 +18,35 @@ jobs:
       matrix:
         include:
           - target: x86_64-pc-windows-gnu
-            archive: zip
             archive_name: mcumgr-client-windows-x86
           - target: x86_64-unknown-linux-musl
-            archive: zip
             archive_name: mcumgr-client-linux-x86
-          - target: x86_64-apple-darwin
-            archive: zip
-            archive_name: mcumgr-client-macos-x86
 
     steps:
     - uses: actions/checkout@v4
-    - name: Build & Release
-      uses: rust-build/rust-build.action@v1.4.4
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
       with:
-        RUSTTARGET: ${{ matrix.target }}
-        ARCHIVE_TYPES: ${{ matrix.archive }}
-        ARCHIVE_NAME: ${{ matrix.archive_name }}
-        EXTRA_FILES: "README.md LICENSE"
+        toolchain: stable
+
+    - name: Build
+      run: cargo build --release --target ${{ matrix.target }}
+
+    - name: Make zips
+      run: |
+        mkdir ${{ matrix.archive_name }}
+        cp README.md ${{ matrix.archive_name }}
+        cp LICENSE ${{ matrix.archive_name }}
+        cp target/${{ matrix.target }}/release/mcumgr-client ${{ matrix.archive_name }}
+        zip ${{ matrix.archive_name }}.zip ${{ matrix.archive_name }}
+
+    - name: Upload zips to Release
+      uses: svenstaro/upload-release-action@v2
+      with:
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        file: ${{ matrix.archive_name }}.zip
+        tag: ${{ github.ref }}    
 
   release-macos-universal:
     name: macos-universal
@@ -46,7 +55,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Rust
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
           target: aarch64-apple-darwin
@@ -57,20 +66,6 @@ jobs:
       - name: Build x86
         run: cargo build --release --target x86_64-apple-darwin
 
-      - name: Make aarch64 zip
-        run: >
-          zip mcumgr-client-macos-aarch64.zip
-          target/aarch64-apple-darwin/release/mcumgr-client
-          LICENSE
-          README.md
-
-      - name: Upload aarch64 to Release
-        uses: svenstaro/upload-release-action@v2
-        with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: mcumgr-client-macos-aarch64.zip
-          tag: ${{ github.ref }}
-
       - run: mkdir -p target/universal/release
       - name: Combine Binaries into Universal Binary
         run: >
@@ -80,11 +75,12 @@ jobs:
           "target/aarch64-apple-darwin/release/mcumgr-client"
 
       - name: Make universal zip
-        run: >
-          zip mcumgr-client-macos-universal.zip
-          target/universal/release/mcumgr-client
-          LICENSE
-          README.md
+        run: |
+          mkdir mcumgr-client-macos-universal
+          cp README.md mcumgr-client-macos-universal
+          cp LICENSE mcumgr-client-macos-universal
+          cp target/aarch64-apple-darwin/release/mcumgr-client mcumgr-client-macos-universal
+          zip mcumgr-client-macos-universal.zip mcumgr-client-macos-universal
 
       - name: Upload universal to Release
         uses: svenstaro/upload-release-action@v2
