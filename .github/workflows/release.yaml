@@ -25,6 +25,9 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Install dependencies
+      run: sudo apt install mingw-w64
+
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
       with:
@@ -40,7 +43,7 @@ jobs:
         cp README.md ${{ matrix.archive_name }}
         cp LICENSE ${{ matrix.archive_name }}
         cp target/${{ matrix.target }}/release/mcumgr-client ${{ matrix.archive_name }}
-        zip ${{ matrix.archive_name }}.zip ${{ matrix.archive_name }}
+        zip -r ${{ matrix.archive_name }}.zip ${{ matrix.archive_name }}
 
     - name: Upload zips to Release
       uses: svenstaro/upload-release-action@v2
@@ -81,7 +84,7 @@ jobs:
           cp README.md mcumgr-client-macos-universal
           cp LICENSE mcumgr-client-macos-universal
           cp target/aarch64-apple-darwin/release/mcumgr-client mcumgr-client-macos-universal
-          zip mcumgr-client-macos-universal.zip mcumgr-client-macos-universal
+          zip -r mcumgr-client-macos-universal.zip mcumgr-client-macos-universal
 
       - name: Upload universal to Release
         uses: svenstaro/upload-release-action@v2
