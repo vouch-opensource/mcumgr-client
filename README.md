@@ -22,7 +22,7 @@ Recommended is with [rustup](https://www.rust-lang.org/tools/install), because t
 ## Build
 Change to this directory and build it:
 ```
-rust build --release
+cargo build --release
 ```
 Without `--release`, it builds in debug mode.
 
