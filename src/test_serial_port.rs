@@ -85,7 +85,7 @@ impl Write for TestSerialPort {
                     100,
                     NmpOp::ReadRsp,
                     NmpGroup::Image,
-                    NmpIdImage::State,
+                    NmpIdImage::State as u8,
                     &body,
                     request_header.seq,
                 )
@@ -115,7 +115,7 @@ impl Write for TestSerialPort {
                     4096,
                     NmpOp::WriteRsp,
                     NmpGroup::Image,
-                    NmpIdImage::State,
+                    NmpIdImage::State as u8,
                     &cbor_body,
                     request_header.seq,
                 )

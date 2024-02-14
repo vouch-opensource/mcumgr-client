@@ -125,14 +125,14 @@ pub struct NmpHdr {
 }
 
 impl NmpHdr {
-    pub fn new_req(op: NmpOp, group: NmpGroup, id: NmpIdImage) -> NmpHdr {
+    pub fn new_req(op: NmpOp, group: NmpGroup, id: u8) -> NmpHdr {
         NmpHdr {
             op,
             flags: 0,
             len: 0,
             group,
             seq: 0,
-            id: id as u8,
+            id: id,
         }
     }
 
