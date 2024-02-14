@@ -8,12 +8,14 @@ use std::env;
 use std::process;
 
 pub mod cli;
+pub mod default;
 pub mod image;
 pub mod nmp_hdr;
 pub mod test_serial_port;
 pub mod transfer;
 
 use crate::cli::*;
+use crate::default::*;
 use crate::image::*;
 
 fn main() {
@@ -103,6 +105,7 @@ fn main() {
     // execute command
     let result = match &cli.command {
         Commands::List => list(&cli),
+        Commands::Reset => reset(&cli),
         Commands::Upload { filename } => upload(&cli, filename),
     };
 

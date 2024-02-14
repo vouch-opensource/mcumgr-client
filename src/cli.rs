@@ -43,6 +43,9 @@ pub enum Commands {
     /// list slots on the device
     List,
 
+    /// reset the device
+    Reset,
+
     /// upload a file to the device
     Upload { filename: PathBuf },
 }
