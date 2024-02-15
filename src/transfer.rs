@@ -1,6 +1,6 @@
 // Copyright © 2023 Vouch.io LLC
 
-use anyhow::{bail, Error, Result};
+use anyhow::{bail, Context, Error, Result};
 use base64::{engine::general_purpose, Engine as _};
 use byteorder::{BigEndian, ByteOrder, WriteBytesExt};
 use crc16::*;
@@ -13,8 +13,11 @@ use serialport::SerialPort;
 use std::cmp::min;
 use std::io::Cursor;
 use std::sync::atomic::{AtomicU8, Ordering};
+use std::time::Duration;
 
+use crate::cli::*;
 use crate::nmp_hdr::*;
+use crate::test_serial_port::TestSerialPort;
 
 fn read_byte(port: &mut dyn SerialPort) -> Result<u8, Error> {
     let mut byte = [0u8];
@@ -30,6 +33,17 @@ fn expect_byte(port: &mut dyn SerialPort, b: u8) -> Result<(), Error> {
     Ok(())
 }
 
+pub fn open_port(cli: &Cli) -> Result<Box<dyn SerialPort>, Error> {
+    if cli.device.to_lowercase() == "test" {
+        Ok(Box::new(TestSerialPort::new()))
+    } else {
+        serialport::new(&cli.device, cli.baudrate)
+            .timeout(Duration::from_secs(cli.timeout as u64))
+            .open()
+            .with_context(|| format!("failed to open serial port {}", &cli.device))
+    }
+}
+
 // thread-safe counter, initialized with a random value on first call
 pub fn next_seq_id() -> u8 {
     lazy_static! {
@@ -42,7 +56,7 @@ pub fn encode_request(
     linelength: usize,
     op: NmpOp,
     group: NmpGroup,
-    id: NmpIdImage,
+    id: impl NmpId,
     body: &Vec<u8>,
     seq_id: u8,
 ) -> Result<(Vec<u8>, NmpHdr), Error> {
