@@ -25,7 +25,7 @@ pub fn reset(cli: &Cli) -> Result<(), Error> {
         cli.linelength,
         NmpOp::Write,
         NmpGroup::Default,
-        NmpIdDef::Reset as u8,
+        NmpIdDef::Reset,
         &body,
         next_seq_id(),
     )?;

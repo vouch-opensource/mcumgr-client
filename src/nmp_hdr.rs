@@ -44,6 +44,10 @@ pub enum NmpGroup {
     PerUser = 64,
 }
 
+pub trait NmpId {
+    fn to_u8(&self) -> u8;
+}
+
 #[repr(u8)]
 #[derive(Debug, Copy, Clone)]
 pub enum NmpIdDef {
@@ -55,6 +59,12 @@ pub enum NmpIdDef {
     Reset = 5,
 }
 
+impl NmpId for NmpIdDef {
+    fn to_u8(&self) -> u8 {
+        *self as u8
+    }
+}
+
 #[repr(u8)]
 #[derive(Debug, Copy, Clone)]
 pub enum NmpIdImage {
@@ -63,6 +73,12 @@ pub enum NmpIdImage {
     CoreList = 3,
     CoreLoad = 4,
     Erase = 5,
+}
+
+impl NmpId for NmpIdImage {
+    fn to_u8(&self) -> u8 {
+        *self as u8
+    }
 }
 
 #[repr(u8)]
@@ -125,14 +141,14 @@ pub struct NmpHdr {
 }
 
 impl NmpHdr {
-    pub fn new_req(op: NmpOp, group: NmpGroup, id: u8) -> NmpHdr {
+    pub fn new_req(op: NmpOp, group: NmpGroup, id: impl NmpId) -> NmpHdr {
         NmpHdr {
             op,
             flags: 0,
             len: 0,
             group,
             seq: 0,
-            id: id,
+            id: id.to_u8(),
         }
     }
 

@@ -56,7 +56,7 @@ pub fn encode_request(
     linelength: usize,
     op: NmpOp,
     group: NmpGroup,
-    id: u8,
+    id: impl NmpId,
     body: &Vec<u8>,
     seq_id: u8,
 ) -> Result<(Vec<u8>, NmpHdr), Error> {

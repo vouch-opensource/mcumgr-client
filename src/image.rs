@@ -33,7 +33,7 @@ pub fn list(cli: &Cli) -> Result<(), Error> {
         cli.linelength,
         NmpOp::Read,
         NmpGroup::Image,
-        NmpIdImage::State as u8,
+        NmpIdImage::State,
         &body,
         next_seq_id(),
     )?;
@@ -131,7 +131,7 @@ pub fn upload(cli: &Cli, filename: &PathBuf) -> Result<(), Error> {
                 cli.linelength,
                 NmpOp::Write,
                 NmpGroup::Image,
-                NmpIdImage::Upload as u8,
+                NmpIdImage::Upload,
                 &body,
                 seq_id,
             )?;
