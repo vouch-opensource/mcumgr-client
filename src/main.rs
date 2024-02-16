@@ -1,4 +1,4 @@
-// Copyright © 2023 Vouch.io LLC
+// Copyright © 2023-2024 Vouch.io LLC
 
 use clap::Parser;
 use log::{error, info, LevelFilter};
@@ -22,7 +22,7 @@ fn main() {
     // show program name, version and copyright
     let name = env!("CARGO_PKG_NAME");
     let version = env!("CARGO_PKG_VERSION");
-    println!("{} {}, Copyright © 2023 Vouch.io LLC", name, version);
+    println!("{} {}, Copyright © 2024 Vouch.io LLC", name, version);
     println!("");
 
     // parse command line arguments
