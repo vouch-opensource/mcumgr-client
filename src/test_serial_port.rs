@@ -1,4 +1,4 @@
-// Copyright © 2023 Vouch.io LLC
+// Copyright © 2023-2024 Vouch.io LLC
 
 use base64::engine::{general_purpose::STANDARD, Engine};
 use byteorder::{BigEndian, ByteOrder};
