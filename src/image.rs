@@ -3,8 +3,7 @@
 use anyhow::{bail, Error, Result};
 use humantime::format_duration;
 use indicatif::{ProgressBar, ProgressStyle};
-use log::debug;
-use log::info;
+use log::{debug, info, warn};
 use serde_cbor;
 use serde_json;
 use sha2::{Digest, Sha256};
@@ -37,7 +36,7 @@ pub fn list(cli: &Cli) -> Result<(), Error> {
         &body,
         next_seq_id(),
     )?;
-    let (response_header, response_body) = transceive(&mut *port, data)?;
+    let (response_header, response_body) = transceive(&mut *port, &data)?;
 
     // verify sequence id
     if response_header.seq != request_header.seq {
@@ -89,7 +88,10 @@ pub fn upload(cli: &Cli, filename: &PathBuf) -> Result<(), Error> {
     // transfer in blocks
     let mut off: usize = 0;
     let start_time = Instant::now();
+    let mut sent_blocks: u32 = 0;
+    let mut confirmed_blocks: u32 = 0;
     loop {
+        let mut nb_retry = cli.nb_retry;
         let off_start = off;
         let mut try_length = cli.mtu;
         debug!("try_length: {}", try_length);
@@ -151,7 +153,19 @@ pub fn upload(cli: &Cli, filename: &PathBuf) -> Result<(), Error> {
             }
 
             // send request
-            let (response_header, response_body) = transceive(&mut *port, chunk)?;
+            sent_blocks += 1;
+            let (response_header, response_body) = match transceive(&mut *port, &chunk) {
+                Ok(ret) => ret,
+                Err(e) if e.to_string() == "Operation timed out" => {
+                    if nb_retry == 0 {
+                        return Err(e);
+                    }
+                    nb_retry -= 1;
+                    debug!("missed answer, nb_retry: {}", nb_retry);
+                    continue;
+                }
+                Err(e) => return Err(e),
+            };
 
             // verify sequence id
             if response_header.seq != request_header.seq {
@@ -187,7 +201,7 @@ pub fn upload(cli: &Cli, filename: &PathBuf) -> Result<(), Error> {
                     }
                 }
             }
-
+            confirmed_blocks += 1;
             break;
         }
 
@@ -200,6 +214,10 @@ pub fn upload(cli: &Cli, filename: &PathBuf) -> Result<(), Error> {
         if off == data.len() {
             break;
         }
+    
+        // The first packet was sent and the device has cleared his internal flash
+        // We can now lower the timeout in case of failed transmission
+        port.set_timeout(Duration::from_millis(cli.subsequent_timeout_ms as u64))?;
     }
     pb.finish_with_message("upload complete");
 
@@ -207,6 +225,9 @@ pub fn upload(cli: &Cli, filename: &PathBuf) -> Result<(), Error> {
     let elapsed_duration = Duration::from_secs(elapsed as u64);
     let formatted_duration = format_duration(elapsed_duration);
     info!("upload took {}", formatted_duration);
+    if confirmed_blocks != sent_blocks {
+        warn!("upload packet loss {}%", 100 - confirmed_blocks * 100 / sent_blocks);
+    }
 
     Ok(())
 }

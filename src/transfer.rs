@@ -38,7 +38,7 @@ pub fn open_port(cli: &Cli) -> Result<Box<dyn SerialPort>, Error> {
         Ok(Box::new(TestSerialPort::new()))
     } else {
         serialport::new(&cli.device, cli.baudrate)
-            .timeout(Duration::from_secs(cli.timeout as u64))
+            .timeout(Duration::from_secs(cli.initial_timeout_s as u64))
             .open()
             .with_context(|| format!("failed to open serial port {}", &cli.device))
     }
@@ -110,7 +110,7 @@ pub fn encode_request(
 
 pub fn transceive(
     port: &mut dyn SerialPort,
-    data: Vec<u8>,
+    data: &Vec<u8>,
 ) -> Result<(NmpHdr, serde_cbor::Value), Error> {
     // empty input buffer
     let to_read = port.bytes_to_read()?;
@@ -119,14 +119,14 @@ pub fn transceive(
     }
 
     // write request
-    port.write_all(&data)?;
+    port.write_all(data)?;
 
     // read result
     let mut bytes_read = 0;
     let mut expected_len = 0;
     let mut result: Vec<u8> = Vec::new();
     loop {
-        // first wait for the chunk start marker
+        debug!("waiting for the chunk start marker");
         if bytes_read == 0 {
             expect_byte(&mut *port, 6)?;
             expect_byte(&mut *port, 9)?;

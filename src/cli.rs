@@ -18,9 +18,17 @@ pub struct Cli {
     #[arg(short, long)]
     pub verbose: bool,
 
-    /// maximum timeout in seconds
-    #[arg(short, long, default_value_t = 60)]
-    pub timeout: u32,
+    /// initial timeout in seconds
+    #[arg(short = 'i', long = "initial_timeout", default_value_t = 60)]
+    pub initial_timeout_s: u32,
+
+    /// subsequent timeout in msec
+    #[arg(short = 't', long = "subsequent_timeout", default_value_t = 200)]
+    pub subsequent_timeout_ms: u32,
+
+    // number of retry per packet
+    #[arg(long, default_value_t = 4)]
+    pub nb_retry: u32,
 
     /// maximum length per line
     #[arg(short, long, default_value_t = 128)]
