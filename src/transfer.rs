@@ -126,7 +126,7 @@ pub fn transceive(
     let mut expected_len = 0;
     let mut result: Vec<u8> = Vec::new();
     loop {
-        debug!("waiting for the chunk start marker");
+        // first wait for the chunk start marker
         if bytes_read == 0 {
             expect_byte(&mut *port, 6)?;
             expect_byte(&mut *port, 9)?;

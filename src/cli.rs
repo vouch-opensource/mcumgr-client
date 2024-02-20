@@ -19,11 +19,11 @@ pub struct Cli {
     pub verbose: bool,
 
     /// initial timeout in seconds
-    #[arg(short = 'i', long = "initial_timeout", default_value_t = 60)]
+    #[arg(short = 't', long = "initial_timeout", default_value_t = 60)]
     pub initial_timeout_s: u32,
 
     /// subsequent timeout in msec
-    #[arg(short = 't', long = "subsequent_timeout", default_value_t = 200)]
+    #[arg(short = 'u', long = "subsequent_timeout", default_value_t = 200)]
     pub subsequent_timeout_ms: u32,
 
     // number of retry per packet

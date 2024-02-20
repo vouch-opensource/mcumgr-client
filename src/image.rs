@@ -215,7 +215,7 @@ pub fn upload(cli: &Cli, filename: &PathBuf) -> Result<(), Error> {
             break;
         }
     
-        // The first packet was sent and the device has cleared his internal flash
+        // The first packet was sent and the device has cleared its internal flash
         // We can now lower the timeout in case of failed transmission
         port.set_timeout(Duration::from_millis(cli.subsequent_timeout_ms as u64))?;
     }
