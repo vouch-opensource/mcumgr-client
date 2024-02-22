@@ -15,10 +15,10 @@ use crate::transfer::transceive;
 
 pub fn reset(cli: &Cli) -> Result<(), Error> {
     info!("send reset request");
-    
+
     // open serial port
     let mut port = open_port(cli)?;
-   
+
     // send request
     let body = Vec::new();
     let (data, request_header) = encode_request(
@@ -29,7 +29,7 @@ pub fn reset(cli: &Cli) -> Result<(), Error> {
         &body,
         next_seq_id(),
     )?;
-    let (response_header, response_body) = transceive(&mut *port, data)?;
+    let (response_header, response_body) = transceive(&mut *port, &data)?;
     
     // verify sequence id
     if response_header.seq != request_header.seq {
