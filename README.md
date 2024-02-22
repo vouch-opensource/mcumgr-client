@@ -1,6 +1,6 @@
 # mcumgr-client
 
-This is a Rust program to run mcumgr commands, used for example for Zephyr, for uploading firmware updates from a PC to an embedded device. It is an alternative to [the mcumgr Go program](https://github.com/apache/mynewt-mcumgr-cli).
+This is a Rust program to run mcumgr commands, used for example for Zephyr, for uploading firmware updates from a PC to an embedded device. It is a faster alternative to [the mcumgr Go program](https://github.com/apache/mynewt-mcumgr-cli).
 
 ## Download
 
