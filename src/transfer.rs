@@ -157,7 +157,7 @@ pub fn transceive(
         }
 
         // stop when done
-        if decoded.len() >= expected_len {
+        if (decoded.len() - 2) >= expected_len {
             break;
         }
     }
