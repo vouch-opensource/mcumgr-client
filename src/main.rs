@@ -1,22 +1,87 @@
 // Copyright © 2023-2024 Vouch.io LLC
 
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use log::{error, info, LevelFilter};
 use serialport::available_ports;
 use simplelog::{ColorChoice, Config, SimpleLogger, TermLogger, TerminalMode};
 use std::env;
 use std::process;
+use std::path::PathBuf;
+use anyhow::{Error, Result};
+use indicatif::{ProgressBar, ProgressStyle};
 
-pub mod cli;
-pub mod default;
-pub mod image;
-pub mod nmp_hdr;
-pub mod test_serial_port;
-pub mod transfer;
+use mcumgr_client::*;
 
-use crate::cli::*;
-use crate::default::*;
-use crate::image::*;
+#[derive(Parser)]
+#[command(author, version, about, long_about = None)]
+struct Cli {
+    /// device name
+    #[arg(short, long, default_value = "")]
+    device: String,
+
+    /// verbose mode
+    #[arg(short, long)]
+    verbose: bool,
+
+    /// initial timeout in seconds
+    #[arg(short = 't', long = "initial_timeout", default_value_t = 60)]
+    initial_timeout_s: u32,
+
+    /// subsequent timeout in msec
+    #[arg(short = 'u', long = "subsequent_timeout", default_value_t = 200)]
+    subsequent_timeout_ms: u32,
+
+    // number of retry per packet
+    #[arg(long, default_value_t = 4)]
+    nb_retry: u32,
+
+    /// maximum length per line
+    #[arg(short, long, default_value_t = 128)]
+    linelength: usize,
+
+    /// maximum length per request
+    #[arg(short, long, default_value_t = 512)]
+    mtu: usize,
+
+    /// baudrate
+    #[arg(short, long, default_value_t = 115_200)]
+    baudrate: u32,
+
+    #[command(subcommand)]
+    command: Commands,
+}
+
+impl From<&Cli> for SerialSpecs {
+    fn from(cli: &Cli) -> SerialSpecs {
+        SerialSpecs {
+            device: cli.device.clone(),
+            initial_timeout_s: cli.initial_timeout_s,
+            subsequent_timeout_ms: cli.subsequent_timeout_ms,
+            nb_retry: cli.nb_retry,
+            linelength: cli.linelength,
+            mtu: cli.mtu,
+            baudrate: cli.baudrate,
+        }
+    }
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// list slots on the device
+    List,
+
+    /// reset the device
+    Reset,
+
+    /// upload a file to the device
+    Upload {
+        filename: PathBuf,
+
+        /// slot number
+        #[arg(short, long, default_value_t = 1)]
+        slot: u8,
+    },
+}
 
 fn main() {
     // show program name, version and copyright
@@ -102,11 +167,37 @@ fn main() {
         }
     }
 
+    let specs = SerialSpecs::from(&cli);
+
     // execute command
     let result = match &cli.command {
-        Commands::List => list(&cli),
-        Commands::Reset => reset(&cli),
-        Commands::Upload { filename } => upload(&cli, filename),
+        Commands::List => || -> Result<(), Error> {
+                let v = list(&specs)?;
+                print!("response: {}", serde_json::to_string_pretty(&v)?);
+                Ok(())
+        }(),
+        Commands::Reset => reset(&specs),
+        Commands::Upload { filename , slot} => || -> Result<(), Error> {
+            // create a progress bar
+            let pb = ProgressBar::new(1 as u64);
+            pb.set_style(ProgressStyle::default_bar()
+            .template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({eta})")
+            .unwrap().progress_chars("=> "));
+
+            upload(&specs, filename, *slot, Some(|offset, total| {
+                if let Some(l) = pb.length() {
+                    if l != total {
+                        pb.set_length(total as u64)
+                    }
+                }
+
+                pb.set_position(offset as u64);
+
+                if offset >= total {
+                    pb.finish_with_message("upload complete");
+                }
+            }))
+        }(),
     };
 
     // show error, if failed
