@@ -19,6 +19,7 @@ pub enum NmpOp {
 
 #[repr(u8)]
 #[derive(Debug, Copy, Clone)]
+#[allow(dead_code)]
 pub enum NmpErr {
     Ok = 0,
     EUnknown = 1,
@@ -50,6 +51,7 @@ pub trait NmpId {
 
 #[repr(u8)]
 #[derive(Debug, Copy, Clone)]
+#[allow(dead_code)]
 pub enum NmpIdDef {
     Echo = 0,
     ConsEchoCtrl = 1,
@@ -67,6 +69,7 @@ impl NmpId for NmpIdDef {
 
 #[repr(u8)]
 #[derive(Debug, Copy, Clone)]
+#[allow(dead_code)]
 pub enum NmpIdImage {
     State = 0,
     Upload = 1,
@@ -83,6 +86,7 @@ impl NmpId for NmpIdImage {
 
 #[repr(u8)]
 #[derive(Debug, Copy, Clone)]
+#[allow(dead_code)]
 pub enum NmpIdStat {
     Read = 0,
     List = 1,
@@ -90,12 +94,14 @@ pub enum NmpIdStat {
 
 #[repr(u8)]
 #[derive(Debug, Copy, Clone)]
+#[allow(dead_code)]
 pub enum NmpIdConfig {
     Val = 0,
 }
 
 #[repr(u8)]
 #[derive(Debug, Copy, Clone)]
+#[allow(dead_code)]
 pub enum NmpIdLog {
     Show = 0,
     Clear = 1,
@@ -107,12 +113,14 @@ pub enum NmpIdLog {
 
 #[repr(u8)]
 #[derive(Debug, Copy, Clone)]
+#[allow(dead_code)]
 pub enum NmpIdCrash {
     Trigger = 0,
 }
 
 #[repr(u8)]
 #[derive(Debug, Copy, Clone)]
+#[allow(dead_code)]
 pub enum NmpIdRun {
     Test = 0,
     List = 1,
@@ -120,12 +128,14 @@ pub enum NmpIdRun {
 
 #[repr(u8)]
 #[derive(Debug, Copy, Clone)]
+#[allow(dead_code)]
 pub enum NmpIdFs {
     File = 0,
 }
 
 #[repr(u8)]
 #[derive(Debug, Copy, Clone)]
+#[allow(dead_code)]
 pub enum NmpIdShell {
     Exec = 0,
 }
