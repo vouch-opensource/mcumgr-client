@@ -15,9 +15,18 @@ use std::io::Cursor;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::time::Duration;
 
-use crate::cli::*;
 use crate::nmp_hdr::*;
 use crate::test_serial_port::TestSerialPort;
+
+pub struct SerialSpecs {
+    pub device: String,
+    pub initial_timeout_s: u32,
+    pub subsequent_timeout_ms: u32,
+    pub nb_retry: u32,
+    pub linelength: usize,
+    pub mtu: usize,
+    pub baudrate: u32
+}
 
 fn read_byte(port: &mut dyn SerialPort) -> Result<u8, Error> {
     let mut byte = [0u8];
@@ -33,14 +42,14 @@ fn expect_byte(port: &mut dyn SerialPort, b: u8) -> Result<(), Error> {
     Ok(())
 }
 
-pub fn open_port(cli: &Cli) -> Result<Box<dyn SerialPort>, Error> {
-    if cli.device.to_lowercase() == "test" {
+pub fn open_port(specs: &SerialSpecs) -> Result<Box<dyn SerialPort>, Error> {
+    if specs.device.to_lowercase() == "test" {
         Ok(Box::new(TestSerialPort::new()))
     } else {
-        serialport::new(&cli.device, cli.baudrate)
-            .timeout(Duration::from_secs(cli.initial_timeout_s as u64))
+        serialport::new(&specs.device, specs.baudrate)
+            .timeout(Duration::from_secs(specs.initial_timeout_s as u64))
             .open()
-            .with_context(|| format!("failed to open serial port {}", &cli.device))
+            .with_context(|| format!("failed to open serial port {}", &specs.device))
     }
 }
 

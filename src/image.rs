@@ -2,7 +2,6 @@
 
 use anyhow::{bail, Error, Result};
 use humantime::format_duration;
-use indicatif::{ProgressBar, ProgressStyle};
 use log::{debug, info, warn};
 use serde_cbor;
 use serde_json;
@@ -12,24 +11,24 @@ use std::path::PathBuf;
 use std::time::Duration;
 use std::time::Instant;
 
-use crate::cli::*;
 use crate::nmp_hdr::*;
 use crate::transfer::encode_request;
 use crate::transfer::next_seq_id;
 use crate::transfer::open_port;
 use crate::transfer::transceive;
+use crate::transfer::SerialSpecs;
 
-pub fn list(cli: &Cli) -> Result<(), Error> {
+pub fn list(specs: &SerialSpecs) -> Result<serde_cbor::Value, Error> {
     info!("send image list request");
 
     // open serial port
-    let mut port = open_port(cli)?;
+    let mut port = open_port(specs)?;
 
     // send request
     let body: Vec<u8> =
         serde_cbor::to_vec(&std::collections::BTreeMap::<String, String>::new()).unwrap();
     let (data, request_header) = encode_request(
-        cli.linelength,
+        specs.linelength,
         NmpOp::Read,
         NmpGroup::Image,
         NmpIdImage::State,
@@ -48,22 +47,17 @@ pub fn list(cli: &Cli) -> Result<(), Error> {
         bail!("wrong response types");
     }
 
-    // print body
-    info!(
-        "response: {}",
-        serde_json::to_string_pretty(&response_body)?
-    );
-
-    Ok(())
+    Ok(response_body)
 }
 
-pub fn upload(cli: &Cli, filename: &PathBuf) -> Result<(), Error> {
+pub fn upload<F>(specs: &SerialSpecs, filename: &PathBuf, slot: u8, mut progress: Option<F>) -> Result<(), Error> where 
+    F: FnMut(u64, u64) {
     let filename_string = filename.to_string_lossy();
     info!("upload file: {}", filename_string);
 
     // special feature: if the name contains "slot1" or "slot3", then use this slot
     let filename_lowercase = filename_string.to_lowercase();
-    let mut slot = cli.slot;
+    let mut slot = slot;
     if filename_lowercase.contains(&"slot1".to_lowercase()) {
         slot = 1;
     }
@@ -73,17 +67,11 @@ pub fn upload(cli: &Cli, filename: &PathBuf) -> Result<(), Error> {
     info!("flashing to slot {}", slot);
 
     // open serial port
-    let mut port = open_port(cli)?;
+    let mut port = open_port(specs)?;
 
     // load file
     let data = read(filename)?;
     info!("{} bytes to transfer", data.len());
-
-    // create a progress bar
-    let pb = ProgressBar::new(data.len() as u64);
-    pb.set_style(ProgressStyle::default_bar()
-    .template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({eta})")
-    .unwrap().progress_chars("=> "));
 
     // transfer in blocks
     let mut off: usize = 0;
@@ -91,9 +79,9 @@ pub fn upload(cli: &Cli, filename: &PathBuf) -> Result<(), Error> {
     let mut sent_blocks: u32 = 0;
     let mut confirmed_blocks: u32 = 0;
     loop {
-        let mut nb_retry = cli.nb_retry;
+        let mut nb_retry = specs.nb_retry;
         let off_start = off;
-        let mut try_length = cli.mtu;
+        let mut try_length = specs.mtu;
         debug!("try_length: {}", try_length);
         let seq_id = next_seq_id();
         loop {
@@ -130,7 +118,7 @@ pub fn upload(cli: &Cli, filename: &PathBuf) -> Result<(), Error> {
             // convert to bytes with CBOR
             let body = serde_cbor::to_vec(&req)?;
             let (chunk, request_header) = encode_request(
-                cli.linelength,
+                specs.linelength,
                 NmpOp::Write,
                 NmpGroup::Image,
                 NmpIdImage::Upload,
@@ -139,8 +127,8 @@ pub fn upload(cli: &Cli, filename: &PathBuf) -> Result<(), Error> {
             )?;
 
             // test if too long
-            if chunk.len() > cli.mtu {
-                let reduce = chunk.len() - cli.mtu;
+            if chunk.len() > specs.mtu {
+                let reduce = chunk.len() - specs.mtu;
                 if reduce > try_length {
                     bail!("MTU too small");
                 }
@@ -209,7 +197,11 @@ pub fn upload(cli: &Cli, filename: &PathBuf) -> Result<(), Error> {
         if off_start == off {
             bail!("wrong offset received");
         }
-        pb.set_position(off as u64);
+
+        if let Some(ref mut f) = progress {
+            f(off as u64, data.len() as u64);
+        }
+
         //info!("{}% uploaded", 100 * off / data.len());
         if off == data.len() {
             break;
@@ -217,9 +209,8 @@ pub fn upload(cli: &Cli, filename: &PathBuf) -> Result<(), Error> {
     
         // The first packet was sent and the device has cleared its internal flash
         // We can now lower the timeout in case of failed transmission
-        port.set_timeout(Duration::from_millis(cli.subsequent_timeout_ms as u64))?;
+        port.set_timeout(Duration::from_millis(specs.subsequent_timeout_ms as u64))?;
     }
-    pb.finish_with_message("upload complete");
 
     let elapsed = start_time.elapsed().as_secs_f64().round();
     let elapsed_duration = Duration::from_secs(elapsed as u64);
