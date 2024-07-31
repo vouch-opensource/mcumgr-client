@@ -46,7 +46,7 @@ fn check_answer(request_header: &NmpHdr, response_header: &NmpHdr) -> bool
     let expected_op_type = match request_header.op {
         NmpOp::Read => NmpOp::ReadRsp,
         NmpOp::Write => NmpOp::WriteRsp,
-        _ => panic!("Unexpected type")
+        _ => return false
     }; 
 
     // verify response
