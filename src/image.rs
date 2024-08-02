@@ -1,5 +1,6 @@
 // Copyright © 2023-2024 Vouch.io LLC
 
+use anyhow::anyhow;
 use anyhow::{bail, Error, Result};
 use humantime::format_duration;
 use log::{debug, info, warn};
@@ -35,8 +36,7 @@ fn get_rc(response_body: &serde_cbor::Value) -> Option<u32> {
     rc
 }
 
-fn check_answer(request_header: &NmpHdr, response_header: &NmpHdr) -> bool
-{
+fn check_answer(request_header: &NmpHdr, response_header: &NmpHdr) -> bool {
     // verify sequence id
     if response_header.seq != request_header.seq {
         log::debug!("wrong sequence number");
@@ -46,8 +46,8 @@ fn check_answer(request_header: &NmpHdr, response_header: &NmpHdr) -> bool
     let expected_op_type = match request_header.op {
         NmpOp::Read => NmpOp::ReadRsp,
         NmpOp::Write => NmpOp::WriteRsp,
-        _ => return false
-    }; 
+        _ => return false,
+    };
 
     // verify response
     if response_header.op != expected_op_type || response_header.group != request_header.group {
@@ -56,7 +56,7 @@ fn check_answer(request_header: &NmpHdr, response_header: &NmpHdr) -> bool
     }
 
     true
-} 
+}
 
 pub fn erase(specs: &SerialSpecs, slot: Option<u32>) -> Result<(), Error> {
     info!("erase request");
@@ -64,9 +64,7 @@ pub fn erase(specs: &SerialSpecs, slot: Option<u32>) -> Result<(), Error> {
     // open serial port
     let mut port = open_port(specs)?;
 
-    let req = ImageEraseReq {
-        slot : slot
-    };
+    let req = ImageEraseReq { slot: slot };
     let body = serde_cbor::to_vec(&req)?;
     // send request
     let (data, request_header) = encode_request(
@@ -101,7 +99,7 @@ pub fn test(specs: &SerialSpecs, hash: Vec<u8>, confirm: Option<bool>) -> Result
 
     let req = ImageStateReq {
         hash: hash,
-        confirm : confirm
+        confirm: confirm,
     };
     let body = serde_cbor::to_vec(&req)?;
     // send request
@@ -129,7 +127,6 @@ pub fn test(specs: &SerialSpecs, hash: Vec<u8>, confirm: Option<bool>) -> Result
     Ok(())
 }
 
-
 pub fn list(specs: &SerialSpecs) -> Result<Vec<ImageStateEntry>, Error> {
     info!("send image list request");
 
@@ -153,13 +150,21 @@ pub fn list(specs: &SerialSpecs) -> Result<Vec<ImageStateEntry>, Error> {
         bail!("wrong answer types")
     }
 
-    let ans: ImageStateRsp = serde_cbor::value::from_value(response_body)?;
+    let ans: ImageStateRsp = serde_cbor::value::from_value(response_body)
+        .map_err(|e| anyhow::format_err!("unexpected answer from device | {}", e))?;
 
     Ok(ans.images)
 }
 
-pub fn upload<F>(specs: &SerialSpecs, filename: &PathBuf, slot: u8, mut progress: Option<F>) -> Result<(), Error> where 
-    F: FnMut(u64, u64) {
+pub fn upload<F>(
+    specs: &SerialSpecs,
+    filename: &PathBuf,
+    slot: u8,
+    mut progress: Option<F>,
+) -> Result<(), Error>
+where
+    F: FnMut(u64, u64),
+{
     let filename_string = filename.to_string_lossy();
     info!("upload file: {}", filename_string);
 
@@ -308,7 +313,7 @@ pub fn upload<F>(specs: &SerialSpecs, filename: &PathBuf, slot: u8, mut progress
         if off == data.len() {
             break;
         }
-    
+
         // The first packet was sent and the device has cleared its internal flash
         // We can now lower the timeout in case of failed transmission
         port.set_timeout(Duration::from_millis(specs.subsequent_timeout_ms as u64))?;
@@ -319,7 +324,10 @@ pub fn upload<F>(specs: &SerialSpecs, filename: &PathBuf, slot: u8, mut progress
     let formatted_duration = format_duration(elapsed_duration);
     info!("upload took {}", formatted_duration);
     if confirmed_blocks != sent_blocks {
-        warn!("upload packet loss {}%", 100 - confirmed_blocks * 100 / sent_blocks);
+        warn!(
+            "upload packet loss {}%",
+            100 - confirmed_blocks * 100 / sent_blocks
+        );
     }
 
     Ok(())
