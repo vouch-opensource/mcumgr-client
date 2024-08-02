@@ -4,6 +4,7 @@ use base64::engine::{general_purpose::STANDARD, Engine};
 use byteorder::{BigEndian, ByteOrder};
 use crc16::State;
 use crc16::XMODEM;
+use hex;
 use serialport::DataBits;
 use serialport::FlowControl;
 use serialport::Parity;
@@ -77,10 +78,24 @@ impl Write for TestSerialPort {
 
         match request_header.id {
             id if id == NmpIdImage::State as u8 => {
-                let mut map = std::collections::BTreeMap::<String, String>::new();
-                let test_string = "x".repeat(1024);
-                map.insert("test".to_string(), test_string);
-                let body = serde_cbor::to_vec(&map).unwrap();
+                let img_vec = vec![ImageStateEntry {
+                    image: 1,
+                    slot: 0,
+                    version: "1.0.0".to_string(),
+                    hash: hex::decode(
+                        "61ddbce8f52e53715f57b360a5af0700ba17122114c94a11b86d9097f7e09cc3",
+                    ).unwrap(),
+                    bootable: false,
+                    pending: false,
+                    confirmed: false,
+                    active: true,
+                    permanent: false,
+                }];
+                let state_response = ImageStateRsp {
+                    images : img_vec,
+                    split_status : None
+                };
+                let body = serde_cbor::to_vec(&state_response).unwrap();
                 let (encoded_response, _) = encode_request(
                     100,
                     NmpOp::ReadRsp,

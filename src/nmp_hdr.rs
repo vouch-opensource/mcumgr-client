@@ -5,8 +5,6 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use num;
 use num_derive::FromPrimitive;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use std::collections::HashMap;
 use std::io::Cursor;
 
 #[repr(u8)]
@@ -234,9 +232,6 @@ pub struct ImageStateEntry {
     pub active: bool,
     #[serde(default = "default_false")]
     pub permanent: bool,
-
-    #[serde(flatten)]
-    pub extra: HashMap<String, Value>,
 }
 
 
@@ -251,11 +246,8 @@ pub struct ImageStateReq {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ImageStateRsp {
     pub images: Vec<ImageStateEntry>,
-    #[serde(rename = "splitStatus")]
-    pub split_status: SplitStatus,
-
-    #[serde(flatten)]
-    pub extra: HashMap<String, Value>,
+    #[serde(rename = "splitStatus", skip_serializing_if = "Option::is_none")]
+    pub split_status: Option<SplitStatus>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

@@ -1,6 +1,5 @@
 // Copyright © 2023-2024 Vouch.io LLC
 
-use anyhow::anyhow;
 use anyhow::{bail, Error, Result};
 use humantime::format_duration;
 use log::{debug, info, warn};
@@ -127,7 +126,7 @@ pub fn test(specs: &SerialSpecs, hash: Vec<u8>, confirm: Option<bool>) -> Result
     Ok(())
 }
 
-pub fn list(specs: &SerialSpecs) -> Result<Vec<ImageStateEntry>, Error> {
+pub fn list(specs: &SerialSpecs) -> Result<ImageStateRsp, Error> {
     info!("send image list request");
 
     // open serial port
@@ -153,7 +152,7 @@ pub fn list(specs: &SerialSpecs) -> Result<Vec<ImageStateEntry>, Error> {
     let ans: ImageStateRsp = serde_cbor::value::from_value(response_body)
         .map_err(|e| anyhow::format_err!("unexpected answer from device | {}", e))?;
 
-    Ok(ans.images)
+    Ok(ans)
 }
 
 pub fn upload<F>(
