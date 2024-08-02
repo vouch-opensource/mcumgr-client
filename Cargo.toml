@@ -19,6 +19,7 @@ byteorder = "1.4"
 clap = { version = "4", features = ["derive"] }
 crc16 = "0.4"
 hex = "0.4"
+hex-buffer-serde = "0.4.0"
 humantime = "2.1.0"
 indicatif = "0.17"
 lazy_static = "1.4"

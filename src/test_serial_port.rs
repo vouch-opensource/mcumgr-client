@@ -4,6 +4,7 @@ use base64::engine::{general_purpose::STANDARD, Engine};
 use byteorder::{BigEndian, ByteOrder};
 use crc16::State;
 use crc16::XMODEM;
+use hex;
 use serialport::DataBits;
 use serialport::FlowControl;
 use serialport::Parity;
@@ -21,6 +22,7 @@ pub struct TestSerialPort {
     data: Vec<u8>,
     position: usize,
     total_len: u32,
+    images: Vec<ImageStateEntry>,
 }
 
 impl TestSerialPort {
@@ -29,6 +31,20 @@ impl TestSerialPort {
             data: Vec::new(),
             position: 0,
             total_len: 0,
+            images: vec![ImageStateEntry {
+                image: 1,
+                slot: 0,
+                version: "1.0.0".to_string(),
+                hash: hex::decode(
+                    "61ddbce8f52e53715f57b360a5af0700ba17122114c94a11b86d9097f7e09cc3",
+                )
+                .unwrap(),
+                bootable: false,
+                pending: false,
+                confirmed: false,
+                active: true,
+                permanent: false,
+            }],
         }
     }
 }
@@ -74,23 +90,41 @@ impl Write for TestSerialPort {
 
         let mut request_cursor = Cursor::new(&data);
         let request_header = NmpHdr::deserialize(&mut request_cursor).unwrap();
+        // let header_len: usize = 8;
+        // let request_body = data[header_len..].to_vec();
 
         match request_header.id {
             id if id == NmpIdImage::State as u8 => {
-                let mut map = std::collections::BTreeMap::<String, String>::new();
-                let test_string = "x".repeat(1024);
-                map.insert("test".to_string(), test_string);
-                let body = serde_cbor::to_vec(&map).unwrap();
-                let (encoded_response, _) = encode_request(
-                    100,
-                    NmpOp::ReadRsp,
-                    NmpGroup::Image,
-                    NmpIdImage::State,
-                    &body,
-                    request_header.seq,
-                )
-                .unwrap();
-                self.data.extend_from_slice(&encoded_response);
+                if request_header.op == NmpOp::Read {
+                    let state_response = ImageStateRsp {
+                        images: self.images.clone(),
+                        split_status: None,
+                    };
+                    let body = serde_cbor::to_vec(&state_response).unwrap();
+                    let (encoded_response, _) = encode_request(
+                        100,
+                        NmpOp::ReadRsp,
+                        NmpGroup::Image,
+                        NmpIdImage::State,
+                        &body,
+                        request_header.seq,
+                    )
+                    .unwrap();
+                    self.data.extend_from_slice(&encoded_response);
+                } else if request_header.op == NmpOp::Write {
+                    // let request: ImageStateReq = serde_cbor::from_slice(request_body.as_slice()).unwrap();
+                    let body = serde_cbor::to_vec(&serde_cbor::Value::Null).unwrap();
+                    let (encoded_response, _) = encode_request(
+                        100,
+                        NmpOp::WriteRsp,
+                        NmpGroup::Image,
+                        NmpIdImage::Erase,
+                        &body,
+                        request_header.seq,
+                    )
+                    .unwrap();
+                    self.data.extend_from_slice(&encoded_response);
+                }
             }
             id if id == NmpIdImage::Upload as u8 => {
                 let body_start = request_cursor.position() as usize;
@@ -117,6 +151,20 @@ impl Write for TestSerialPort {
                     NmpGroup::Image,
                     NmpIdImage::State,
                     &cbor_body,
+                    request_header.seq,
+                )
+                .unwrap();
+                self.data.extend_from_slice(&encoded_response);
+            }
+            id if id == NmpIdImage::Erase as u8 => {
+                // let request: ImageEraseReq = serde_cbor::from_slice(request_body.as_slice()).unwrap();
+                let body = serde_cbor::to_vec(&serde_cbor::Value::Null).unwrap();
+                let (encoded_response, _) = encode_request(
+                    100,
+                    NmpOp::WriteRsp,
+                    NmpGroup::Image,
+                    NmpIdImage::Erase,
+                    &body,
                     request_header.seq,
                 )
                 .unwrap();

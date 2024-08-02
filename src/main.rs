@@ -1,14 +1,14 @@
 // Copyright © 2023-2024 Vouch.io LLC
 
+use anyhow::{Error, Result};
 use clap::{Parser, Subcommand};
+use indicatif::{ProgressBar, ProgressStyle};
 use log::{error, info, LevelFilter};
 use serialport::available_ports;
 use simplelog::{ColorChoice, Config, SimpleLogger, TermLogger, TerminalMode};
 use std::env;
-use std::process;
 use std::path::PathBuf;
-use anyhow::{Error, Result};
-use indicatif::{ProgressBar, ProgressStyle};
+use std::process;
 
 use mcumgr_client::*;
 
@@ -80,6 +80,16 @@ enum Commands {
         /// slot number
         #[arg(short, long, default_value_t = 1)]
         slot: u8,
+    },
+
+    Test {
+        hash: String,
+        #[arg(short, long)]
+        confirm: Option<bool>,
+    },
+    Erase {
+        #[arg(short, long)]
+        slot: Option<u32>,
     },
 }
 
@@ -172,32 +182,41 @@ fn main() {
     // execute command
     let result = match &cli.command {
         Commands::List => || -> Result<(), Error> {
-                let v = list(&specs)?;
-                print!("response: {}", serde_json::to_string_pretty(&v)?);
-                Ok(())
+            let v = list(&specs)?;
+            print!("response: {}", serde_json::to_string_pretty(&v)?);
+            Ok(())
         }(),
         Commands::Reset => reset(&specs),
-        Commands::Upload { filename , slot} => || -> Result<(), Error> {
+        Commands::Upload { filename, slot } => || -> Result<(), Error> {
             // create a progress bar
             let pb = ProgressBar::new(1 as u64);
             pb.set_style(ProgressStyle::default_bar()
             .template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({eta})")
             .unwrap().progress_chars("=> "));
 
-            upload(&specs, filename, *slot, Some(|offset, total| {
-                if let Some(l) = pb.length() {
-                    if l != total {
-                        pb.set_length(total as u64)
+            upload(
+                &specs,
+                filename,
+                *slot,
+                Some(|offset, total| {
+                    if let Some(l) = pb.length() {
+                        if l != total {
+                            pb.set_length(total as u64)
+                        }
                     }
-                }
 
-                pb.set_position(offset as u64);
+                    pb.set_position(offset as u64);
 
-                if offset >= total {
-                    pb.finish_with_message("upload complete");
-                }
-            }))
+                    if offset >= total {
+                        pb.finish_with_message("upload complete");
+                    }
+                }),
+            )
         }(),
+        Commands::Test { hash, confirm } => || -> Result<(), Error> { 
+            test(&specs, hex::decode(hash)?, *confirm)
+        }(),
+        Commands::Erase { slot } => erase(&specs, *slot),
     };
 
     // show error, if failed

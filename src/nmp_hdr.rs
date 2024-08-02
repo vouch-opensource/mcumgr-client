@@ -1,11 +1,10 @@
 // Copyright © 2023-2024 Vouch.io LLC
 
+use hex_buffer_serde::{Hex as _, HexForm};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use num;
 use num_derive::FromPrimitive;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use std::collections::HashMap;
 use std::io::Cursor;
 
 #[repr(u8)]
@@ -203,8 +202,12 @@ pub enum SplitStatus {
     Matching = 2,
 }
 
-fn default_0() -> i32 {
+fn default_0() -> u32 {
     0
+}
+
+fn default_false() -> bool {
+    false
 }
 
 fn default_vec() -> Vec<u8> {
@@ -214,32 +217,37 @@ fn default_vec() -> Vec<u8> {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ImageStateEntry {
     #[serde(default = "default_0")]
-    pub image: i32,
-    pub slot: i32,
+    pub image: u32,
+    pub slot: u32,
     pub version: String,
-    #[serde(default = "default_vec")]
+    #[serde(default = "default_vec", with = "HexForm")]
     pub hash: Vec<u8>,
+    #[serde(default = "default_false")]
     pub bootable: bool,
+    #[serde(default = "default_false")]
     pub pending: bool,
+    #[serde(default = "default_false")]
     pub confirmed: bool,
+    #[serde(default = "default_false")]
     pub active: bool,
+    #[serde(default = "default_false")]
     pub permanent: bool,
+}
 
-    #[serde(flatten)]
-    pub extra: HashMap<String, Value>,
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct ImageStateReq {
+    #[serde(with = "serde_bytes")]
+    pub hash: Vec<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub confirm: Option<bool>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ImageStateRsp {
-    #[serde(rename = "hdr")]
-    pub nmp_base: NmpBase,
-    pub rc: i32,
     pub images: Vec<ImageStateEntry>,
-    #[serde(rename = "splitStatus")]
-    pub split_status: SplitStatus,
-
-    #[serde(flatten)]
-    pub extra: HashMap<String, Value>,
+    #[serde(rename = "splitStatus", skip_serializing_if = "Option::is_none")]
+    pub split_status: Option<SplitStatus>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -261,4 +269,10 @@ pub struct ImageUploadReq {
     pub data_sha: Option<Vec<u8>>,
     #[serde(rename = "upgrade", default, skip_serializing_if = "Option::is_none")]
     pub upgrade: Option<bool>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct ImageEraseReq {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub slot: Option<u32>,
 }
