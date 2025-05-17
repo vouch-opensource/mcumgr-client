@@ -31,7 +31,7 @@ struct Cli {
     #[arg(short = 'u', long = "subsequent_timeout", default_value_t = 200)]
     subsequent_timeout_ms: u32,
 
-    // number of retry per packet
+    // number of retries per packet
     #[arg(long, default_value_t = 4)]
     nb_retry: u32,
 
