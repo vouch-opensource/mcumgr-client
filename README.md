@@ -42,7 +42,7 @@ Example to flash an external flash in slot 3, and with the increased MTU and lin
 ./target/release/mcumgr-client -s 3 -m 4096 -l 8192 -d /dev/ttyACM0 upload ext-flash.bin 
 ```
 
-Example to rest a device:
+Example to reset a device:
 ```
 ./target/release/mcumgr-client -d /dev/ttyACM0 reset
 ```
