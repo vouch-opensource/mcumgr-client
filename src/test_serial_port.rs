@@ -135,7 +135,8 @@ impl Write for TestSerialPort {
                 if image_upload_req.off == 0 {
                     self.total_len = image_upload_req.len.unwrap();
                 }
-                let mut off_value = image_upload_req.off + data.len() as u32;
+                let chunk_len = image_upload_req.data.len() as u32;
+                let mut off_value = image_upload_req.off + chunk_len;
                 if off_value > self.total_len {
                     off_value = self.total_len;
                 }
@@ -149,7 +150,7 @@ impl Write for TestSerialPort {
                     4096,
                     NmpOp::WriteRsp,
                     NmpGroup::Image,
-                    NmpIdImage::State,
+                    NmpIdImage::Upload,
                     &cbor_body,
                     request_header.seq,
                 )
