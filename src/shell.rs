@@ -1,4 +1,4 @@
-// Copyright © 2026 Rudis Laboratories LLC
+// Copyright © 2026 Rudis Laboratories LLC, 2026 VeeMax BV
 
 use anyhow::{Error, Result};
 use log::{debug, info};

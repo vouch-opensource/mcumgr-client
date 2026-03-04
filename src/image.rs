@@ -1,17 +1,17 @@
-// Copyright © 2023-2024 Vouch.io LLC, 2026 Rudis Laboratories LLC
+// Copyright © 2023-2024 Vouch.io LLC, 2026 Rudis Laboratories LLC, 2026 VeeMax BV
 
 use anyhow::{bail, Error, Result};
 use humantime::format_duration;
 use log::{debug, info, warn};
 use sha2::{Digest, Sha256};
 use std::fs::read;
-use std::path::PathBuf;
+use std::path::Path;
 use std::time::Duration;
 use std::time::Instant;
 
 use crate::nmp_hdr::*;
 use crate::transfer::Transport;
-use crate::util::get_rc;
+use crate::util::{check_rc, empty_cbor_body};
 
 /// Erase an image slot
 pub fn erase(transport: &mut dyn Transport, slot: Option<u32>) -> Result<(), Error> {
@@ -27,18 +27,17 @@ pub fn erase(transport: &mut dyn Transport, slot: Option<u32>) -> Result<(), Err
         &body,
     )?;
 
-    if let Some(rc) = get_rc(&response_body) {
-        if rc != 0 {
-            bail!("Error from device: {}", rc);
-        }
-    }
-
+    check_rc(&response_body)?;
     debug!("{:?}", response_body);
     Ok(())
 }
 
 /// Set image pending/confirm
-pub fn test(transport: &mut dyn Transport, hash: Vec<u8>, confirm: Option<bool>) -> Result<(), Error> {
+pub fn test(
+    transport: &mut dyn Transport,
+    hash: Vec<u8>,
+    confirm: Option<bool>,
+) -> Result<(), Error> {
     info!("set image pending request");
 
     let req = ImageStateReq { hash, confirm };
@@ -51,12 +50,7 @@ pub fn test(transport: &mut dyn Transport, hash: Vec<u8>, confirm: Option<bool>)
         &body,
     )?;
 
-    if let Some(rc) = get_rc(&response_body) {
-        if rc != 0 {
-            return Err(anyhow::format_err!("Error from device: {}", rc));
-        }
-    }
-
+    check_rc(&response_body)?;
     debug!("{:?}", response_body);
     Ok(())
 }
@@ -65,8 +59,7 @@ pub fn test(transport: &mut dyn Transport, hash: Vec<u8>, confirm: Option<bool>)
 pub fn list(transport: &mut dyn Transport) -> Result<ImageStateRsp, Error> {
     info!("send image list request");
 
-    let body: Vec<u8> =
-        serde_cbor::to_vec(&std::collections::BTreeMap::<String, String>::new()).unwrap();
+    let body = empty_cbor_body();
 
     let (_response_header, response_body) = transport.transceive(
         NmpOp::Read,
@@ -84,9 +77,10 @@ pub fn list(transport: &mut dyn Transport) -> Result<ImageStateRsp, Error> {
 /// Upload an image with retry logic
 pub fn upload_image<F>(
     transport: &mut dyn Transport,
-    filename: &PathBuf,
+    filename: &Path,
     slot: u8,
     nb_retry: u32,
+    subsequent_timeout_ms: u32,
     mut progress: Option<F>,
 ) -> Result<(), Error>
 where
@@ -121,22 +115,15 @@ where
     while off < data.len() {
         let mut retries_left = nb_retry;
         let off_start = off;
-        let try_length = mtu;
 
         loop {
-            // get slot
-            let image_num = slot;
-
             // create image upload request
-            let mut chunk_len = try_length;
-            if off + chunk_len > data.len() {
-                chunk_len = data.len() - off;
-            }
+            let chunk_len = mtu.min(data.len() - off);
             let chunk = data[off..off + chunk_len].to_vec();
             let len = data.len() as u32;
             let req = if off == 0 {
                 ImageUploadReq {
-                    image_num,
+                    image_num: slot,
                     off: off as u32,
                     len: Some(len),
                     data_sha: Some(Sha256::digest(&data).to_vec()),
@@ -145,7 +132,7 @@ where
                 }
             } else {
                 ImageUploadReq {
-                    image_num,
+                    image_num: slot,
                     off: off as u32,
                     len: None,
                     data_sha: None,
@@ -166,29 +153,16 @@ where
                 &body,
             ) {
                 Ok((_response_header, response_body)) => {
-                    // verify result code and update offset
                     debug!(
                         "response_body: {}",
                         serde_json::to_string_pretty(&response_body)?
                     );
-
+                    check_rc(&response_body)?;
                     if let serde_cbor::Value::Map(object) = &response_body {
-                        for (key, val) in object.iter() {
-                            match key {
-                                serde_cbor::Value::Text(rc_key) if rc_key == "rc" => {
-                                    if let serde_cbor::Value::Integer(rc) = val {
-                                        if *rc != 0 {
-                                            bail!("rc = {}", rc);
-                                        }
-                                    }
-                                }
-                                serde_cbor::Value::Text(off_key) if off_key == "off" => {
-                                    if let serde_cbor::Value::Integer(off_val) = val {
-                                        off = *off_val as usize;
-                                    }
-                                }
-                                _ => (),
-                            }
+                        if let Some(serde_cbor::Value::Integer(off_val)) =
+                            object.get(&serde_cbor::Value::Text("off".into()))
+                        {
+                            off = *off_val as usize;
                         }
                     }
                     confirmed_blocks += 1;
@@ -219,7 +193,7 @@ where
         }
 
         // Reduce timeout for subsequent packets
-        transport.set_timeout(200)?;
+        transport.set_timeout(subsequent_timeout_ms)?;
     }
 
     let elapsed = start_time.elapsed().as_secs_f64().round();

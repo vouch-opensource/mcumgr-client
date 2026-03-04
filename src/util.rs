@@ -1,34 +1,9 @@
-// Copyright © 2026 Rudis Laboratories LLC
+// Copyright © 2026 Rudis Laboratories LLC, 2026 VeeMax BV
 
-use log::debug;
-
-use crate::nmp_hdr::{NmpHdr, NmpOp};
-
-/// Verify that a response header matches the expected request header.
-pub fn check_answer(request_header: &NmpHdr, response_header: &NmpHdr) -> bool {
-    // verify sequence id
-    if response_header.seq != request_header.seq {
-        debug!("wrong sequence number");
-        return false;
-    }
-
-    let expected_op_type = match request_header.op {
-        NmpOp::Read => NmpOp::ReadRsp,
-        NmpOp::Write => NmpOp::WriteRsp,
-        _ => return false,
-    };
-
-    // verify response
-    if response_header.op != expected_op_type || response_header.group != request_header.group {
-        debug!("wrong response types");
-        return false;
-    }
-
-    true
-}
+use anyhow::{bail, Result};
 
 /// Extract the "rc" (return code) field from a CBOR response map.
-pub fn get_rc(response_body: &serde_cbor::Value) -> Option<i64> {
+fn get_rc(response_body: &serde_cbor::Value) -> Option<i64> {
     if let serde_cbor::Value::Map(object) = response_body {
         for (key, val) in object.iter() {
             if let serde_cbor::Value::Text(rc_key) = key {
@@ -41,4 +16,19 @@ pub fn get_rc(response_body: &serde_cbor::Value) -> Option<i64> {
         }
     }
     None
+}
+
+/// Check the "rc" field in a CBOR response and bail if non-zero.
+pub fn check_rc(response_body: &serde_cbor::Value) -> Result<()> {
+    if let Some(rc) = get_rc(response_body) {
+        if rc != 0 {
+            bail!("device returned error: rc={}", rc);
+        }
+    }
+    Ok(())
+}
+
+/// Create an empty CBOR map body for requests with no parameters.
+pub fn empty_cbor_body() -> Vec<u8> {
+    serde_cbor::to_vec(&std::collections::BTreeMap::<String, String>::new()).unwrap()
 }

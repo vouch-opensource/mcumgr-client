@@ -1,4 +1,4 @@
-// Copyright © 2023-2024 Vouch.io LLC, 2026 Rudis Laboratories LLC
+// Copyright © 2023-2024 Vouch.io LLC, 2026 Rudis Laboratories LLC, 2026 VeeMax BV
 
 use anyhow::{bail, Context, Error, Result};
 use base64::{engine::general_purpose, Engine as _};
@@ -46,16 +46,6 @@ pub enum ConnSpec {
 }
 
 impl ConnSpec {
-    /// Check if this is a UDP connection
-    pub fn is_udp(&self) -> bool {
-        matches!(self, ConnSpec::Udp(_))
-    }
-
-    /// Check if this is a serial connection
-    pub fn is_serial(&self) -> bool {
-        matches!(self, ConnSpec::Serial(_))
-    }
-
     /// Open a transport connection based on this spec
     pub fn open(&self) -> Result<Box<dyn Transport>, Error> {
         match self {
@@ -76,7 +66,6 @@ pub struct SerialSpecs {
     pub device: String,
     pub initial_timeout_s: u32,
     pub subsequent_timeout_ms: u32,
-    pub nb_retry: u32,
     pub linelength: usize,
     pub mtu: usize,
     pub baudrate: u32,
@@ -117,7 +106,6 @@ impl SerialTransport {
                 device: specs.device.clone(),
                 initial_timeout_s: specs.initial_timeout_s,
                 subsequent_timeout_ms: specs.subsequent_timeout_ms,
-                nb_retry: specs.nb_retry,
                 linelength: specs.linelength,
                 mtu: specs.mtu,
                 baudrate: specs.baudrate,

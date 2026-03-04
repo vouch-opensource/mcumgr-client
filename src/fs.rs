@@ -1,4 +1,4 @@
-// Copyright © 2026 Rudis Laboratories LLC
+// Copyright © 2026 Rudis Laboratories LLC, 2026 VeeMax BV
 
 use anyhow::{bail, Error, Result};
 use indicatif::{ProgressBar, ProgressStyle};
@@ -8,12 +8,12 @@ use std::path::Path;
 
 use crate::nmp_hdr::*;
 use crate::transfer::Transport;
-use crate::util::get_rc;
+use crate::util::check_rc;
 
 /// Download a file from the device
 ///
 /// Downloads a file from the remote path on the device to a local file.
-pub fn download(transport: &mut dyn Transport, remote_path: &str, local_path: &Path) -> Result<(), Error> {
+pub fn download(transport: &mut dyn Transport, remote_path: &str, local_path: &Path, subsequent_timeout_ms: u32) -> Result<(), Error> {
     info!("download file: {} -> {}", remote_path, local_path.display());
 
     let mut file_data: Vec<u8> = Vec::new();
@@ -45,12 +45,7 @@ pub fn download(transport: &mut dyn Transport, remote_path: &str, local_path: &P
 
         debug!("response_body: {}", serde_json::to_string_pretty(&response_body)?);
 
-        // Check for rc error
-        if let Some(rc) = get_rc(&response_body) {
-            if rc != 0 {
-                bail!("Error from device: rc={}", rc);
-            }
-        }
+        check_rc(&response_body)?;
 
         let rsp: FsDownloadRsp = serde_cbor::value::from_value(response_body)
             .map_err(|e| anyhow::format_err!("unexpected answer from device | {}", e))?;
@@ -81,7 +76,7 @@ pub fn download(transport: &mut dyn Transport, remote_path: &str, local_path: &P
         }
 
         // Reduce timeout for subsequent packets
-        transport.set_timeout(200)?;
+        transport.set_timeout(subsequent_timeout_ms)?;
     }
 
     pb.finish_with_message("download complete");
@@ -96,7 +91,7 @@ pub fn download(transport: &mut dyn Transport, remote_path: &str, local_path: &P
 /// Upload a file to the device
 ///
 /// Uploads a local file to the remote path on the device.
-pub fn upload(transport: &mut dyn Transport, local_path: &Path, remote_path: &str) -> Result<(), Error> {
+pub fn upload(transport: &mut dyn Transport, local_path: &Path, remote_path: &str, subsequent_timeout_ms: u32) -> Result<(), Error> {
     info!("upload file: {} -> {}", local_path.display(), remote_path);
 
     let file_data = fs::read(local_path)?;
@@ -141,12 +136,7 @@ pub fn upload(transport: &mut dyn Transport, local_path: &Path, remote_path: &st
 
         debug!("response_body: {}", serde_json::to_string_pretty(&response_body)?);
 
-        // Check for rc error
-        if let Some(rc) = get_rc(&response_body) {
-            if rc != 0 {
-                bail!("Error from device: rc={}", rc);
-            }
-        }
+        check_rc(&response_body)?;
 
         let rsp: FsUploadRsp = serde_cbor::value::from_value(response_body)
             .map_err(|e| anyhow::format_err!("unexpected answer from device | {}", e))?;
@@ -156,7 +146,7 @@ pub fn upload(transport: &mut dyn Transport, local_path: &Path, remote_path: &st
 
         // Reduce timeout for subsequent packets
         if offset > 0 {
-            transport.set_timeout(200)?;
+            transport.set_timeout(subsequent_timeout_ms)?;
         }
     }
 

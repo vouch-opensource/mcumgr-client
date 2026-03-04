@@ -1,4 +1,4 @@
-// Copyright © 2023-2024 Vouch.io LLC, 2026 Rudis Laboratories LLC
+// Copyright © 2023-2024 Vouch.io LLC, 2026 Rudis Laboratories LLC, 2026 VeeMax BV
 
 use anyhow::{Error, Result};
 use clap::{Parser, Subcommand};
@@ -78,7 +78,6 @@ impl From<&Cli> for SerialSpecs {
             device: cli.device.clone(),
             initial_timeout_s: cli.initial_timeout_s,
             subsequent_timeout_ms: cli.subsequent_timeout_ms,
-            nb_retry: cli.nb_retry,
             linelength: cli.linelength,
             mtu: cli.mtu,
             baudrate: cli.baudrate,
@@ -350,7 +349,7 @@ fn main() {
     };
 
     // execute command
-    let result = execute_command(&cli.command, transport.as_mut(), cli.nb_retry);
+    let result = execute_command(&cli.command, transport.as_mut(), cli.nb_retry, cli.subsequent_timeout_ms);
 
     // show error, if failed
     if let Err(e) = result {
@@ -359,7 +358,7 @@ fn main() {
     }
 }
 
-fn execute_command(command: &Commands, transport: &mut dyn Transport, nb_retry: u32) -> Result<(), Error> {
+fn execute_command(command: &Commands, transport: &mut dyn Transport, nb_retry: u32, subsequent_timeout_ms: u32) -> Result<(), Error> {
     match command {
         // ============== Image Management ==============
         Commands::List => {
@@ -380,6 +379,7 @@ fn execute_command(command: &Commands, transport: &mut dyn Transport, nb_retry: 
                 filename,
                 *slot,
                 nb_retry,
+                subsequent_timeout_ms,
                 Some(|offset: u64, total: u64| {
                     if let Some(l) = pb.length() {
                         if l != total {
@@ -483,11 +483,11 @@ fn execute_command(command: &Commands, transport: &mut dyn Transport, nb_retry: 
 
         // ============== File System Management ==============
         Commands::FsDownload { remote_path, local_path } => {
-            fs_download(transport, remote_path, local_path)
+            fs_download(transport, remote_path, local_path, subsequent_timeout_ms)
         }
 
         Commands::FsUpload { local_path, remote_path } => {
-            fs_upload(transport, local_path, remote_path)
+            fs_upload(transport, local_path, remote_path, subsequent_timeout_ms)
         }
 
         Commands::FsStat { path } => {

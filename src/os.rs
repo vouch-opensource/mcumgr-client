@@ -1,11 +1,11 @@
-// Copyright © 2026 Rudis Laboratories LLC
+// Copyright © 2026 Rudis Laboratories LLC, 2026 VeeMax BV
 
-use anyhow::{bail, Error, Result};
+use anyhow::{Error, Result};
 use log::{debug, info};
 
 use crate::nmp_hdr::*;
 use crate::transfer::Transport;
-use crate::util::get_rc;
+use crate::util::{check_rc, empty_cbor_body};
 
 /// Send an echo request to the device
 pub fn echo(transport: &mut dyn Transport, message: &str) -> Result<String, Error> {
@@ -35,8 +35,7 @@ pub fn echo(transport: &mut dyn Transport, message: &str) -> Result<String, Erro
 pub fn taskstat(transport: &mut dyn Transport) -> Result<TaskStatRsp, Error> {
     info!("send taskstat request");
 
-    let body: Vec<u8> =
-        serde_cbor::to_vec(&std::collections::BTreeMap::<String, String>::new()).unwrap();
+    let body = empty_cbor_body();
 
     let (_response_header, response_body) = transport.transceive(
         NmpOp::Read,
@@ -57,8 +56,7 @@ pub fn taskstat(transport: &mut dyn Transport) -> Result<TaskStatRsp, Error> {
 pub fn mcumgr_params(transport: &mut dyn Transport) -> Result<McumgrParamsRsp, Error> {
     info!("send mcumgr_params request");
 
-    let body: Vec<u8> =
-        serde_cbor::to_vec(&std::collections::BTreeMap::<String, String>::new()).unwrap();
+    let body = empty_cbor_body();
 
     let (_response_header, response_body) = transport.transceive(
         NmpOp::Read,
@@ -105,12 +103,7 @@ pub fn os_info(transport: &mut dyn Transport, format: Option<&str>) -> Result<St
 
     debug!("response_body: {}", serde_json::to_string_pretty(&response_body)?);
 
-    // Check for rc error
-    if let Some(rc) = get_rc(&response_body) {
-        if rc != 0 {
-            bail!("Error from device: rc={}", rc);
-        }
-    }
+    check_rc(&response_body)?;
 
     let rsp: OsInfoRsp = serde_cbor::value::from_value(response_body)
         .map_err(|e| anyhow::format_err!("unexpected answer from device | {}", e))?;
@@ -140,12 +133,7 @@ pub fn bootloader_info(transport: &mut dyn Transport, query: Option<&str>) -> Re
 
     debug!("response_body: {}", serde_json::to_string_pretty(&response_body)?);
 
-    // Check for rc error
-    if let Some(rc) = get_rc(&response_body) {
-        if rc != 0 {
-            bail!("Error from device: rc={}", rc);
-        }
-    }
+    check_rc(&response_body)?;
 
     let rsp: BootloaderInfoRsp = serde_cbor::value::from_value(response_body)
         .map_err(|e| anyhow::format_err!("unexpected answer from device | {}", e))?;

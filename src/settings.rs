@@ -1,11 +1,11 @@
-// Copyright © 2026 Rudis Laboratories LLC
+// Copyright © 2026 Rudis Laboratories LLC, 2026 VeeMax BV
 
 use anyhow::{bail, Error, Result};
 use log::{debug, info};
 
 use crate::nmp_hdr::*;
 use crate::transfer::Transport;
-use crate::util::get_rc;
+use crate::util::check_rc;
 
 /// Read a settings value from the device
 pub fn settings_read(transport: &mut dyn Transport, name: &str, max_size: Option<u32>) -> Result<SettingsReadRsp, Error> {
@@ -55,12 +55,7 @@ pub fn settings_write(transport: &mut dyn Transport, name: &str, value: Vec<u8>)
 
     debug!("response_body: {}", serde_json::to_string_pretty(&response_body)?);
 
-    // Check for rc error
-    if let Some(rc) = get_rc(&response_body) {
-        if rc != 0 {
-            bail!("Error from device: rc={}", rc);
-        }
-    }
+    check_rc(&response_body)?;
 
     info!("setting written successfully");
     Ok(())
@@ -84,12 +79,7 @@ pub fn settings_delete(transport: &mut dyn Transport, name: &str) -> Result<(), 
 
     debug!("response_body: {}", serde_json::to_string_pretty(&response_body)?);
 
-    // Check for rc error
-    if let Some(rc) = get_rc(&response_body) {
-        if rc != 0 {
-            bail!("Error from device: rc={}", rc);
-        }
-    }
+    check_rc(&response_body)?;
 
     info!("setting deleted successfully");
     Ok(())
@@ -111,12 +101,7 @@ pub fn settings_commit(transport: &mut dyn Transport) -> Result<(), Error> {
 
     debug!("response_body: {}", serde_json::to_string_pretty(&response_body)?);
 
-    // Check for rc error
-    if let Some(rc) = get_rc(&response_body) {
-        if rc != 0 {
-            bail!("Error from device: rc={}", rc);
-        }
-    }
+    check_rc(&response_body)?;
 
     info!("settings committed successfully");
     Ok(())
@@ -138,12 +123,7 @@ pub fn settings_load(transport: &mut dyn Transport) -> Result<(), Error> {
 
     debug!("response_body: {}", serde_json::to_string_pretty(&response_body)?);
 
-    // Check for rc error
-    if let Some(rc) = get_rc(&response_body) {
-        if rc != 0 {
-            bail!("Error from device: rc={}", rc);
-        }
-    }
+    check_rc(&response_body)?;
 
     info!("settings loaded successfully");
     Ok(())
@@ -165,12 +145,7 @@ pub fn settings_save(transport: &mut dyn Transport) -> Result<(), Error> {
 
     debug!("response_body: {}", serde_json::to_string_pretty(&response_body)?);
 
-    // Check for rc error
-    if let Some(rc) = get_rc(&response_body) {
-        if rc != 0 {
-            bail!("Error from device: rc={}", rc);
-        }
-    }
+    check_rc(&response_body)?;
 
     info!("settings saved successfully");
     Ok(())

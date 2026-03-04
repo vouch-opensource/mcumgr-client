@@ -1,17 +1,17 @@
-// Copyright © 2026 Rudis Laboratories LLC
+// Copyright © 2026 Rudis Laboratories LLC, 2026 VeeMax BV
 
 use anyhow::{bail, Error, Result};
 use log::{debug, info};
 
 use crate::nmp_hdr::*;
 use crate::transfer::Transport;
+use crate::util::empty_cbor_body;
 
 /// List available statistics groups on the device
 pub fn stat_list(transport: &mut dyn Transport) -> Result<StatListRsp, Error> {
     info!("send stat list request");
 
-    let body: Vec<u8> =
-        serde_cbor::to_vec(&std::collections::BTreeMap::<String, String>::new()).unwrap();
+    let body = empty_cbor_body();
 
     let (_response_header, response_body) = transport.transceive(
         NmpOp::Read,
