@@ -1,4 +1,4 @@
-// Copyright © 2023-2024 Vouch.io LLC, 2026 Rudis Laboratories LLC
+// Copyright © 2023-2024 Vouch.io LLC, 2026 Rudis Laboratories LLC, 2026 VeeMax BV
 
 use hex_buffer_serde::{Hex as _, HexForm};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
@@ -220,11 +220,6 @@ impl NmpHdr {
     }
 }
 
-#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
-pub struct NmpBase {
-    pub hdr: NmpHdr,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, FromPrimitive, Deserialize, Serialize)]
 pub enum SplitStatus {
     NotApplicable = 0,
@@ -377,12 +372,6 @@ pub struct BootloaderInfoRsp {
     pub no_downgrade: Option<bool>,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct ResetReq {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub force: Option<u32>,
-}
-
 // Shell Management Group Structures
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -482,9 +471,6 @@ pub struct FsHashRsp {
 }
 
 // Statistics Management Group Structures
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct StatListReq {}
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct StatListRsp {
