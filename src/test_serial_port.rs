@@ -1,10 +1,9 @@
-// Copyright © 2023-2024 Vouch.io LLC
+// Copyright © 2023-2024 Vouch.io LLC, 2026 Rudis Laboratories LLC
 
 use base64::engine::{general_purpose::STANDARD, Engine};
 use byteorder::{BigEndian, ByteOrder};
 use crc16::State;
 use crc16::XMODEM;
-use hex;
 use serialport::DataBits;
 use serialport::FlowControl;
 use serialport::Parity;

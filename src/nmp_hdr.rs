@@ -1,8 +1,7 @@
-// Copyright © 2023-2024 Vouch.io LLC
+// Copyright © 2023-2024 Vouch.io LLC, 2026 Rudis Laboratories LLC
 
 use hex_buffer_serde::{Hex as _, HexForm};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
-use num;
 use num_derive::FromPrimitive;
 use serde::{Deserialize, Serialize};
 use std::io::Cursor;
@@ -58,6 +57,9 @@ pub enum NmpIdDef {
     MpStat = 3,
     DateTimeStr = 4,
     Reset = 5,
+    McumgrParams = 6,
+    Info = 7,
+    BootloaderInfo = 8,
 }
 
 impl NmpId for NmpIdDef {
@@ -130,6 +132,16 @@ pub enum NmpIdRun {
 #[allow(dead_code)]
 pub enum NmpIdFs {
     File = 0,
+    FileStat = 1,
+    FileHash = 2,
+    SupportedHashTypes = 3,
+    FileClose = 4,
+}
+
+impl NmpId for NmpIdFs {
+    fn to_u8(&self) -> u8 {
+        *self as u8
+    }
 }
 
 #[repr(u8)]
@@ -137,6 +149,24 @@ pub enum NmpIdFs {
 #[allow(dead_code)]
 pub enum NmpIdShell {
     Exec = 0,
+}
+
+impl NmpId for NmpIdShell {
+    fn to_u8(&self) -> u8 {
+        *self as u8
+    }
+}
+
+impl NmpId for NmpIdStat {
+    fn to_u8(&self) -> u8 {
+        *self as u8
+    }
+}
+
+impl NmpId for NmpIdConfig {
+    fn to_u8(&self) -> u8 {
+        *self as u8
+    }
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize)]
@@ -276,3 +306,242 @@ pub struct ImageEraseReq {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub slot: Option<u32>,
 }
+
+// OS Management Group Structures
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct EchoReq {
+    pub d: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct EchoRsp {
+    pub r: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct TaskStatRsp {
+    pub tasks: std::collections::HashMap<String, TaskInfo>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct TaskInfo {
+    #[serde(default)]
+    pub prio: i32,
+    #[serde(default)]
+    pub state: u64,
+    #[serde(default)]
+    pub stkuse: u64,
+    #[serde(default)]
+    pub stksiz: u64,
+    #[serde(default)]
+    pub cswcnt: u64,
+    #[serde(default)]
+    pub runtime: u64,
+    #[serde(default)]
+    pub last_checkin: u64,
+    #[serde(default)]
+    pub next_checkin: u64,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct McumgrParamsRsp {
+    pub buf_size: u32,
+    pub buf_count: u32,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct OsInfoReq {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub format: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct OsInfoRsp {
+    pub output: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct BootloaderInfoReq {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub query: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct BootloaderInfoRsp {
+    #[serde(default)]
+    pub bootloader: String,
+    #[serde(default)]
+    pub mode: Option<i32>,
+    #[serde(rename = "no-downgrade", default)]
+    pub no_downgrade: Option<bool>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct ResetReq {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub force: Option<u32>,
+}
+
+// Shell Management Group Structures
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct ShellExecReq {
+    #[serde(rename = "argv")]
+    pub argv: Vec<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct ShellExecRsp {
+    #[serde(default)]
+    pub o: String,
+    #[serde(default)]
+    pub rc: i32,
+}
+
+// File System Management Group Structures
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct FsDownloadReq {
+    #[serde(rename = "name")]
+    pub name: String,
+    #[serde(rename = "off")]
+    pub off: u32,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct FsDownloadRsp {
+    #[serde(rename = "off")]
+    pub off: u32,
+    #[serde(rename = "data", with = "serde_bytes")]
+    pub data: Vec<u8>,
+    #[serde(rename = "len", skip_serializing_if = "Option::is_none")]
+    pub len: Option<u32>,
+    #[serde(default)]
+    pub rc: i32,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct FsUploadReq {
+    #[serde(rename = "name")]
+    pub name: String,
+    #[serde(rename = "off")]
+    pub off: u32,
+    #[serde(rename = "data", with = "serde_bytes")]
+    pub data: Vec<u8>,
+    #[serde(rename = "len", skip_serializing_if = "Option::is_none")]
+    pub len: Option<u32>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct FsUploadRsp {
+    #[serde(rename = "off")]
+    pub off: u32,
+    #[serde(default)]
+    pub rc: i32,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct FsStatReq {
+    #[serde(rename = "name")]
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct FsStatRsp {
+    #[serde(rename = "len")]
+    pub len: u32,
+    #[serde(default)]
+    pub rc: i32,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct FsHashReq {
+    #[serde(rename = "name")]
+    pub name: String,
+    #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
+    pub hash_type: Option<String>,
+    #[serde(rename = "off", skip_serializing_if = "Option::is_none")]
+    pub off: Option<u32>,
+    #[serde(rename = "len", skip_serializing_if = "Option::is_none")]
+    pub len: Option<u32>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct FsHashRsp {
+    #[serde(rename = "type")]
+    pub hash_type: String,
+    #[serde(rename = "off")]
+    pub off: u32,
+    #[serde(rename = "len")]
+    pub len: u32,
+    #[serde(rename = "output", with = "serde_bytes")]
+    pub output: Vec<u8>,
+    #[serde(default)]
+    pub rc: i32,
+}
+
+// Statistics Management Group Structures
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct StatListReq {}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct StatListRsp {
+    #[serde(default)]
+    pub stat_list: Vec<String>,
+    #[serde(default)]
+    pub rc: i32,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct StatReadReq {
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct StatReadRsp {
+    pub name: String,
+    #[serde(default)]
+    pub fields: std::collections::HashMap<String, i64>,
+    #[serde(default)]
+    pub rc: i32,
+}
+
+// Settings/Config Management Group Structures
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct SettingsReadReq {
+    pub name: String,
+    #[serde(rename = "max_size", skip_serializing_if = "Option::is_none")]
+    pub max_size: Option<u32>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct SettingsReadRsp {
+    #[serde(rename = "val", with = "serde_bytes", default)]
+    pub val: Vec<u8>,
+    #[serde(default)]
+    pub rc: i32,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct SettingsWriteReq {
+    pub name: String,
+    #[serde(rename = "val", with = "serde_bytes")]
+    pub val: Vec<u8>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct SettingsDeleteReq {
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct SettingsCommitReq {}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct SettingsLoadReq {}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct SettingsSaveReq {}
