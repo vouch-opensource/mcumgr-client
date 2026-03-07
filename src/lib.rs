@@ -14,9 +14,10 @@ pub use crate::default::reset;
 pub use crate::fs::{download as fs_download, hash as fs_hash, stat as fs_stat, upload as fs_upload};
 pub use crate::image::{erase, list, test, upload_image};
 pub use crate::nmp_hdr::{
-    BootloaderInfoRsp, FsHashRsp, FsStatRsp, McumgrParamsRsp, SettingsReadRsp, ShellExecRsp,
-    StatListRsp, StatReadRsp, TaskInfo, TaskStatRsp,
+    BootloaderInfoRsp, FsHashRsp, FsStatRsp, McumgrParamsRsp, NmpGroup, NmpOp, SettingsReadRsp,
+    ShellExecRsp, StatListRsp, StatReadRsp, TaskInfo, TaskStatRsp,
 };
+pub use crate::util::empty_cbor_body;
 pub use crate::os::{bootloader_info, echo, mcuboot_mode_name, mcumgr_params, os_info, taskstat};
 pub use crate::settings::{
     settings_commit, settings_delete, settings_load, settings_read, settings_save, settings_write,

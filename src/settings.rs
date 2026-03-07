@@ -19,7 +19,7 @@ pub fn settings_read(transport: &mut dyn Transport, name: &str, max_size: Option
 
     let (_response_header, response_body) = transport.transceive(
         NmpOp::Read,
-        NmpGroup::Config,
+        NmpGroup::CONFIG,
         NmpIdConfig::Val.to_u8(),
         &body,
     )?;
@@ -48,7 +48,7 @@ pub fn settings_write(transport: &mut dyn Transport, name: &str, value: Vec<u8>)
 
     let (_response_header, response_body) = transport.transceive(
         NmpOp::Write,
-        NmpGroup::Config,
+        NmpGroup::CONFIG,
         NmpIdConfig::Val.to_u8(),
         &body,
     )?;
@@ -72,7 +72,7 @@ pub fn settings_delete(transport: &mut dyn Transport, name: &str) -> Result<(), 
 
     let (_response_header, response_body) = transport.transceive(
         NmpOp::Write,
-        NmpGroup::Config,
+        NmpGroup::CONFIG,
         NmpIdConfig::Val.to_u8(),
         &body,
     )?;
@@ -94,7 +94,7 @@ pub fn settings_commit(transport: &mut dyn Transport) -> Result<(), Error> {
 
     let (_response_header, response_body) = transport.transceive(
         NmpOp::Write,
-        NmpGroup::Config,
+        NmpGroup::CONFIG,
         NmpIdConfig::Val.to_u8(),
         &body,
     )?;
@@ -116,7 +116,7 @@ pub fn settings_load(transport: &mut dyn Transport) -> Result<(), Error> {
 
     let (_response_header, response_body) = transport.transceive(
         NmpOp::Read,
-        NmpGroup::Config,
+        NmpGroup::CONFIG,
         NmpIdConfig::Val.to_u8(),
         &body,
     )?;
@@ -138,7 +138,7 @@ pub fn settings_save(transport: &mut dyn Transport) -> Result<(), Error> {
 
     let (_response_header, response_body) = transport.transceive(
         NmpOp::Write,
-        NmpGroup::Config,
+        NmpGroup::CONFIG,
         NmpIdConfig::Val.to_u8(),
         &body,
     )?;

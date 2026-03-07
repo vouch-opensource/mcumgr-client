@@ -22,7 +22,7 @@ pub fn erase(transport: &mut dyn Transport, slot: Option<u32>) -> Result<(), Err
 
     let (_response_header, response_body) = transport.transceive(
         NmpOp::Write,
-        NmpGroup::Image,
+        NmpGroup::IMAGE,
         NmpIdImage::Erase.to_u8(),
         &body,
     )?;
@@ -45,7 +45,7 @@ pub fn test(
 
     let (_response_header, response_body) = transport.transceive(
         NmpOp::Write,
-        NmpGroup::Image,
+        NmpGroup::IMAGE,
         NmpIdImage::State.to_u8(),
         &body,
     )?;
@@ -63,7 +63,7 @@ pub fn list(transport: &mut dyn Transport) -> Result<ImageStateRsp, Error> {
 
     let (_response_header, response_body) = transport.transceive(
         NmpOp::Read,
-        NmpGroup::Image,
+        NmpGroup::IMAGE,
         NmpIdImage::State.to_u8(),
         &body,
     )?;
@@ -148,7 +148,7 @@ where
             sent_blocks += 1;
             match transport.transceive(
                 NmpOp::Write,
-                NmpGroup::Image,
+                NmpGroup::IMAGE,
                 NmpIdImage::Upload.to_u8(),
                 &body,
             ) {

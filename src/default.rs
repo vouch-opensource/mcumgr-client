@@ -15,7 +15,7 @@ pub fn reset(transport: &mut dyn Transport) -> Result<(), Error> {
     let body = Vec::new();
     let (_response_header, response_body) = transport.transceive(
         NmpOp::Write,
-        NmpGroup::Default,
+        NmpGroup::DEFAULT,
         NmpIdDef::Reset.to_u8(),
         &body,
     )?;

@@ -38,7 +38,7 @@ pub fn download(transport: &mut dyn Transport, remote_path: &str, local_path: &P
 
         let (_response_header, response_body) = transport.transceive(
             NmpOp::Read,
-            NmpGroup::Fs,
+            NmpGroup::FS,
             NmpIdFs::File.to_u8(),
             &body,
         )?;
@@ -129,7 +129,7 @@ pub fn upload(transport: &mut dyn Transport, local_path: &Path, remote_path: &st
 
         let (_response_header, response_body) = transport.transceive(
             NmpOp::Write,
-            NmpGroup::Fs,
+            NmpGroup::FS,
             NmpIdFs::File.to_u8(),
             &body,
         )?;
@@ -167,7 +167,7 @@ pub fn stat(transport: &mut dyn Transport, path: &str) -> Result<FsStatRsp, Erro
 
     let (_response_header, response_body) = transport.transceive(
         NmpOp::Read,
-        NmpGroup::Fs,
+        NmpGroup::FS,
         NmpIdFs::FileStat.to_u8(),
         &body,
     )?;
@@ -204,7 +204,7 @@ pub fn hash(
 
     let (_response_header, response_body) = transport.transceive(
         NmpOp::Read,
-        NmpGroup::Fs,
+        NmpGroup::FS,
         NmpIdFs::FileHash.to_u8(),
         &body,
     )?;

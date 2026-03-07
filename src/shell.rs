@@ -18,7 +18,7 @@ pub fn shell_exec(transport: &mut dyn Transport, argv: Vec<String>) -> Result<Sh
 
     let (_response_header, response_body) = transport.transceive(
         NmpOp::Write,
-        NmpGroup::Shell,
+        NmpGroup::SHELL,
         NmpIdShell::Exec.to_u8(),
         &body,
     )?;

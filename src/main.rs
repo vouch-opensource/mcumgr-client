@@ -249,6 +249,29 @@ enum Commands {
 
     /// save settings to persistent storage
     SettingsSave,
+
+    // ============== Custom Group ==============
+    /// send a raw request to a custom MCUmgr group
+    Custom {
+        /// MCUmgr group ID (e.g., 100 for HCDF)
+        #[arg(short, long)]
+        group: u16,
+
+        /// command ID within the group
+        #[arg(short, long, default_value_t = 0)]
+        id: u8,
+
+        /// operation: "read" or "write"
+        #[arg(short, long, default_value = "read")]
+        op: String,
+
+        /// CBOR request body as hex string (empty map if omitted)
+        #[arg(long)]
+        body: Option<String>,
+    },
+
+    /// query HCDF fragment info from a CogniPilot device (custom group 100)
+    HcdfInfo,
 }
 
 fn main() {
@@ -568,6 +591,59 @@ fn execute_command(command: &Commands, transport: &mut dyn Transport, nb_retry: 
         Commands::SettingsSave => {
             settings_save(transport)?;
             println!("Settings saved successfully");
+            Ok(())
+        }
+
+        // ============== Custom Group ==============
+        Commands::Custom { group, id, op, body } => {
+            let nmp_op = match op.as_str() {
+                "read" => NmpOp::Read,
+                "write" => NmpOp::Write,
+                _ => return Err(anyhow::anyhow!("Invalid op '{}': use 'read' or 'write'", op)),
+            };
+
+            let body_bytes = match body {
+                Some(hex_str) => hex::decode(hex_str)
+                    .map_err(|e| anyhow::anyhow!("Invalid hex body: {}", e))?,
+                None => empty_cbor_body(),
+            };
+
+            let (_response_header, response_body) = transport.transceive(
+                nmp_op,
+                NmpGroup::from(*group),
+                *id,
+                &body_bytes,
+            )?;
+
+            println!("{}", serde_json::to_string_pretty(&response_body)?);
+            Ok(())
+        }
+
+        Commands::HcdfInfo => {
+            let (_response_header, response_body) = transport.transceive(
+                NmpOp::Read,
+                NmpGroup::from(100),
+                0,
+                &empty_cbor_body(),
+            )?;
+
+            // Pretty-print HCDF response fields
+            if let serde_cbor::Value::Map(ref map) = response_body {
+                println!("HCDF Fragment Info:");
+                for (key, val) in map.iter() {
+                    if let serde_cbor::Value::Text(k) = key {
+                        match val {
+                            serde_cbor::Value::Text(v) => println!("  {k}: {v}"),
+                            _ => println!("  {k}: {val:?}"),
+                        }
+                    }
+                }
+                if map.is_empty() {
+                    println!("  (no HCDF info available)");
+                }
+            } else {
+                println!("{}", serde_json::to_string_pretty(&response_body)?);
+            }
             Ok(())
         }
     }
