@@ -27,20 +27,34 @@ pub enum NmpErr {
     ENoEnt = 5,
 }
 
-#[repr(u16)]
-#[derive(Debug, Clone, Copy, FromPrimitive, PartialEq, Deserialize, Serialize)]
-pub enum NmpGroup {
-    Default = 0,
-    Image = 1,
-    Stat = 2,
-    Config = 3,
-    Log = 4,
-    Crash = 5,
-    Split = 6,
-    Run = 7,
-    Fs = 8,
-    Shell = 9,
-    PerUser = 64,
+/// MCUmgr group ID. Supports both standard and custom (vendor/per-user) groups.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Serialize)]
+pub struct NmpGroup(pub u16);
+
+impl NmpGroup {
+    pub const DEFAULT: NmpGroup = NmpGroup(0);
+    pub const IMAGE: NmpGroup = NmpGroup(1);
+    pub const STAT: NmpGroup = NmpGroup(2);
+    pub const CONFIG: NmpGroup = NmpGroup(3);
+    pub const LOG: NmpGroup = NmpGroup(4);
+    pub const CRASH: NmpGroup = NmpGroup(5);
+    pub const SPLIT: NmpGroup = NmpGroup(6);
+    pub const RUN: NmpGroup = NmpGroup(7);
+    pub const FS: NmpGroup = NmpGroup(8);
+    pub const SHELL: NmpGroup = NmpGroup(9);
+    pub const PER_USER: NmpGroup = NmpGroup(64);
+}
+
+impl From<u16> for NmpGroup {
+    fn from(val: u16) -> Self {
+        NmpGroup(val)
+    }
+}
+
+impl From<NmpGroup> for u16 {
+    fn from(group: NmpGroup) -> Self {
+        group.0
+    }
 }
 
 pub trait NmpId {
@@ -196,7 +210,7 @@ impl NmpHdr {
         buffer.write_u8(self.op as u8)?;
         buffer.write_u8(self.flags)?;
         buffer.write_u16::<BigEndian>(self.len)?;
-        buffer.write_u16::<BigEndian>(self.group as u16)?;
+        buffer.write_u16::<BigEndian>(self.group.0)?;
         buffer.write_u8(self.seq)?;
         buffer.write_u8(self.id)?;
         Ok(buffer)
@@ -206,7 +220,7 @@ impl NmpHdr {
         let op = num::FromPrimitive::from_u8(cursor.read_u8()?).unwrap();
         let flags = cursor.read_u8()?;
         let len = cursor.read_u16::<BigEndian>()?;
-        let group = num::FromPrimitive::from_u16(cursor.read_u16::<BigEndian>()?).unwrap();
+        let group = NmpGroup(cursor.read_u16::<BigEndian>()?);
         let seq = cursor.read_u8()?;
         let id = cursor.read_u8()?;
         Ok(NmpHdr {

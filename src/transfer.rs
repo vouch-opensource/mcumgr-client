@@ -231,15 +231,14 @@ impl UdpTransport {
         let version: u8 = 1; // SMP v2
         let byte0 = ((version & 0x03) << 3) | (op as u8 & 0x07);
         let flags: u8 = 0;
-        let group_u16 = group as u16;
 
         [
             byte0,
             flags,
             (len >> 8) as u8,
             (len & 0xFF) as u8,
-            (group_u16 >> 8) as u8,
-            (group_u16 & 0xFF) as u8,
+            (group.0 >> 8) as u8,
+            (group.0 & 0xFF) as u8,
             seq,
             id,
         ]
@@ -268,8 +267,7 @@ impl UdpTransport {
             _ => bail!("Unknown op: {}", op_val),
         };
 
-        let group = num::FromPrimitive::from_u16(group_val)
-            .ok_or_else(|| anyhow::anyhow!("Unknown group: {}", group_val))?;
+        let group = NmpGroup(group_val);
 
         Ok(NmpHdr {
             op,

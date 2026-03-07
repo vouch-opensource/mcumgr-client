@@ -103,7 +103,7 @@ impl Write for TestSerialPort {
                     let (encoded_response, _) = encode_request(
                         100,
                         NmpOp::ReadRsp,
-                        NmpGroup::Image,
+                        NmpGroup::IMAGE,
                         NmpIdImage::State,
                         &body,
                         request_header.seq,
@@ -116,7 +116,7 @@ impl Write for TestSerialPort {
                     let (encoded_response, _) = encode_request(
                         100,
                         NmpOp::WriteRsp,
-                        NmpGroup::Image,
+                        NmpGroup::IMAGE,
                         NmpIdImage::Erase,
                         &body,
                         request_header.seq,
@@ -148,7 +148,7 @@ impl Write for TestSerialPort {
                 let (encoded_response, _) = encode_request(
                     4096,
                     NmpOp::WriteRsp,
-                    NmpGroup::Image,
+                    NmpGroup::IMAGE,
                     NmpIdImage::Upload,
                     &cbor_body,
                     request_header.seq,
@@ -162,7 +162,7 @@ impl Write for TestSerialPort {
                 let (encoded_response, _) = encode_request(
                     100,
                     NmpOp::WriteRsp,
-                    NmpGroup::Image,
+                    NmpGroup::IMAGE,
                     NmpIdImage::Erase,
                     &body,
                     request_header.seq,

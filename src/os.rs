@@ -18,7 +18,7 @@ pub fn echo(transport: &mut dyn Transport, message: &str) -> Result<String, Erro
 
     let (_response_header, response_body) = transport.transceive(
         NmpOp::Write,
-        NmpGroup::Default,
+        NmpGroup::DEFAULT,
         NmpIdDef::Echo.to_u8(),
         &body,
     )?;
@@ -39,7 +39,7 @@ pub fn taskstat(transport: &mut dyn Transport) -> Result<TaskStatRsp, Error> {
 
     let (_response_header, response_body) = transport.transceive(
         NmpOp::Read,
-        NmpGroup::Default,
+        NmpGroup::DEFAULT,
         NmpIdDef::TaskStat.to_u8(),
         &body,
     )?;
@@ -60,7 +60,7 @@ pub fn mcumgr_params(transport: &mut dyn Transport) -> Result<McumgrParamsRsp, E
 
     let (_response_header, response_body) = transport.transceive(
         NmpOp::Read,
-        NmpGroup::Default,
+        NmpGroup::DEFAULT,
         NmpIdDef::McumgrParams.to_u8(),
         &body,
     )?;
@@ -96,7 +96,7 @@ pub fn os_info(transport: &mut dyn Transport, format: Option<&str>) -> Result<St
 
     let (_response_header, response_body) = transport.transceive(
         NmpOp::Read,
-        NmpGroup::Default,
+        NmpGroup::DEFAULT,
         NmpIdDef::Info.to_u8(),
         &body,
     )?;
@@ -126,7 +126,7 @@ pub fn bootloader_info(transport: &mut dyn Transport, query: Option<&str>) -> Re
 
     let (_response_header, response_body) = transport.transceive(
         NmpOp::Read,
-        NmpGroup::Default,
+        NmpGroup::DEFAULT,
         NmpIdDef::BootloaderInfo.to_u8(),
         &body,
     )?;

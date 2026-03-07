@@ -15,7 +15,7 @@ pub fn stat_list(transport: &mut dyn Transport) -> Result<StatListRsp, Error> {
 
     let (_response_header, response_body) = transport.transceive(
         NmpOp::Read,
-        NmpGroup::Stat,
+        NmpGroup::STAT,
         NmpIdStat::List.to_u8(),
         &body,
     )?;
@@ -43,7 +43,7 @@ pub fn stat_read(transport: &mut dyn Transport, name: &str) -> Result<StatReadRs
 
     let (_response_header, response_body) = transport.transceive(
         NmpOp::Read,
-        NmpGroup::Stat,
+        NmpGroup::STAT,
         NmpIdStat::Read.to_u8(),
         &body,
     )?;
