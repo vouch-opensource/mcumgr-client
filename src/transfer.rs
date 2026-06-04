@@ -195,7 +195,8 @@ impl UdpTransport {
             .next()
             .ok_or_else(|| anyhow::anyhow!("No address found for: {addr_str}"))?;
 
-        let socket = UdpSocket::bind("0.0.0.0:0")
+        let bind_addr = if addr.is_ipv6() { "[::]:0" } else { "0.0.0.0:0" };
+        let socket = UdpSocket::bind(bind_addr)
             .with_context(|| "Failed to bind UDP socket")?;
 
         socket
