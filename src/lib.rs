@@ -1,3 +1,4 @@
+mod ble;
 mod default;
 mod fs;
 mod image;
@@ -24,4 +25,5 @@ pub use crate::settings::{
 };
 pub use crate::shell::shell_exec;
 pub use crate::stat::{stat_list, stat_read};
+pub use crate::ble::{BleSpecs, BleTransport};
 pub use crate::transfer::{ConnSpec, SerialSpecs, SerialTransport, Transport, UdpSpecs, UdpTransport};

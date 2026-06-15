@@ -14,6 +14,7 @@ use std::net::{SocketAddr, ToSocketAddrs, UdpSocket};
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::time::Duration;
 
+use crate::ble::{BleSpecs, BleTransport};
 use crate::nmp_hdr::*;
 use crate::test_serial_port::TestSerialPort;
 
@@ -38,11 +39,12 @@ pub trait Transport {
     fn linelength(&self) -> usize;
 }
 
-/// Connection specification - either serial or UDP
+/// Connection specification - serial, UDP, or BLE
 #[derive(Debug, Clone)]
 pub enum ConnSpec {
     Serial(SerialSpecs),
     Udp(UdpSpecs),
+    Ble(BleSpecs),
 }
 
 impl ConnSpec {
@@ -55,6 +57,10 @@ impl ConnSpec {
             }
             ConnSpec::Udp(specs) => {
                 let transport = UdpTransport::new(specs)?;
+                Ok(Box::new(transport))
+            }
+            ConnSpec::Ble(specs) => {
+                let transport = BleTransport::new(specs)?;
                 Ok(Box::new(transport))
             }
         }
