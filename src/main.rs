@@ -68,6 +68,22 @@ struct Cli {
     #[arg(short, long, default_value_t = 115_200)]
     baudrate: u32,
 
+    /// BLE device address (e.g. AA:BB:CC:DD:EE:FF)
+    #[arg(long)]
+    ble_address: Option<String>,
+
+    /// BLE device name to scan for
+    #[arg(long)]
+    ble_name: Option<String>,
+
+    /// BLE scan/connect timeout in seconds
+    #[arg(long, default_value_t = 10)]
+    ble_timeout: u32,
+
+    /// BLE ATT MTU payload size in bytes
+    #[arg(long, default_value_t = 244)]
+    ble_mtu: usize,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -86,6 +102,20 @@ impl From<&Cli> for SerialSpecs {
 }
 
 impl Cli {
+    fn is_ble(&self) -> bool {
+        self.ble_address.is_some() || self.ble_name.is_some()
+    }
+
+    fn ble_specs(&self) -> BleSpecs {
+        BleSpecs {
+            address: self.ble_address.clone(),
+            name: self.ble_name.clone(),
+            scan_timeout_s: self.ble_timeout,
+            timeout_s: self.initial_timeout_s,
+            mtu: self.ble_mtu,
+        }
+    }
+
     fn is_udp(&self) -> bool {
         self.host.is_some()
     }
@@ -299,7 +329,15 @@ fn main() {
     .unwrap_or_else(|_| SimpleLogger::init(LevelFilter::Info, Default::default()).unwrap());
 
     // Build transport connection
-    let conn = if cli.is_udp() {
+    let conn = if cli.is_ble() {
+        let ble_specs = cli.ble_specs();
+        if let Some(ref addr) = ble_specs.address {
+            info!("Using BLE transport: address {}", addr);
+        } else if let Some(ref name) = ble_specs.name {
+            info!("Using BLE transport: scanning for '{}'", name);
+        }
+        ConnSpec::Ble(ble_specs)
+    } else if cli.is_udp() {
         let udp_specs = cli.udp_specs();
         info!("Using UDP transport: {}:{}", udp_specs.host, udp_specs.port);
         ConnSpec::Udp(udp_specs)
