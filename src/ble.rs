@@ -1,9 +1,12 @@
 use anyhow::{bail, Context, Error, Result};
-use bluer::{AdapterEvent, Address, Session};
-use bluer::gatt::remote::Characteristic;
+use btleplug::api::{
+    Central, CentralEvent, Characteristic, Manager as _, Peripheral as _, ScanFilter,
+    ValueNotification, WriteType,
+};
+use btleplug::platform::{Manager, Peripheral};
 use futures::StreamExt;
 use log::debug;
-use std::str::FromStr;
+use std::pin::Pin;
 use tokio::time::{timeout, Duration};
 use uuid::{uuid, Uuid};
 
@@ -34,14 +37,29 @@ impl Default for BleSpecs {
     }
 }
 
+// Groups async state so that transceive() can borrow it separately from the runtime.
+struct BleConnection {
+    peripheral: Peripheral,
+    smp_char: Characteristic,
+    notifications: Pin<Box<dyn futures::Stream<Item = ValueNotification> + Send>>,
+}
+
 pub struct BleTransport {
     rt: tokio::runtime::Runtime,
-    // Keep session alive so the D-Bus connection and BlueZ device handle remain valid
-    _session: Session,
-    characteristic: Characteristic,
+    // Wrapped in Option so Drop can take it and destroy it inside block_on,
+    // which is required because MessageStream::drop calls Handle::current().
+    conn: Option<BleConnection>,
     seq: u8,
     timeout_ms: u32,
     mtu: usize,
+}
+
+impl Drop for BleTransport {
+    fn drop(&mut self) {
+        if let Some(conn) = self.conn.take() {
+            self.rt.block_on(async move { drop(conn) });
+        }
+    }
 }
 
 impl BleTransport {
@@ -50,108 +68,140 @@ impl BleTransport {
             bail!("Either --ble-address or --ble-name must be provided");
         }
 
-        let rt = tokio::runtime::Builder::new_current_thread()
+        let rt = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()
             .context("Failed to build tokio runtime")?;
 
-        let (session, characteristic) = rt.block_on(Self::connect_async(specs))?;
+        let conn = rt.block_on(Self::connect_async(specs))?;
 
         Ok(BleTransport {
             rt,
-            _session: session,
-            characteristic,
+            conn: Some(conn),
             seq: 0,
             timeout_ms: specs.timeout_s * 1000,
             mtu: specs.mtu,
         })
     }
 
-    async fn connect_async(specs: &BleSpecs) -> Result<(Session, Characteristic), Error> {
-        let session = Session::new().await.context("Failed to create BlueZ session")?;
-        let adapter = session.default_adapter().await.context("No Bluetooth adapter found")?;
-        adapter.set_powered(true).await.context("Failed to power on Bluetooth adapter")?;
+    async fn connect_async(specs: &BleSpecs) -> Result<BleConnection, Error> {
+        let manager = Manager::new().await.context("Failed to initialize BLE manager")?;
+        let adapters = manager.adapters().await.context("Failed to list BLE adapters")?;
+        let adapter = adapters
+            .into_iter()
+            .next()
+            .ok_or_else(|| anyhow::anyhow!("No Bluetooth adapter found"))?;
 
-        let target_addr: Option<Address> = specs.address.as_deref()
-            .map(|s| Address::from_str(s))
-            .transpose()
-            .context("Invalid BLE address")?;
-        let target_name: Option<String> = specs.name.clone();
+        let target_addr = specs.address.clone();
+        let target_name = specs.name.clone();
         let scan_timeout = specs.scan_timeout_s;
 
         debug!("Starting BLE device discovery (timeout: {}s)...", scan_timeout);
 
-        // Clone adapter for use inside the async move block; original is used after scan.
-        let adapter_scan = adapter.clone();
-        let mut discover = adapter.discover_devices().await
-            .context("Failed to start BLE device discovery")?;
+        adapter
+            .start_scan(ScanFilter::default())
+            .await
+            .context("Failed to start BLE scan")?;
 
-        let device_addr = timeout(Duration::from_secs(scan_timeout as u64), async move {
-            while let Some(evt) = discover.next().await {
-                if let AdapterEvent::DeviceAdded(addr) = evt {
-                    // Match by address
-                    if let Some(target) = target_addr {
-                        if addr == target {
-                            debug!("Found target BLE device at {}", addr);
-                            return Some(addr);
+        let mut events = adapter
+            .events()
+            .await
+            .context("Failed to subscribe to adapter events")?;
+
+        let peripheral = timeout(
+            Duration::from_secs(scan_timeout as u64),
+            async {
+                while let Some(event) = events.next().await {
+                    // DeviceUpdated fires when advertisement data (e.g. name) arrives after discovery
+                    let id = match event {
+                        CentralEvent::DeviceDiscovered(id) | CentralEvent::DeviceUpdated(id) => id,
+                        _ => continue,
+                    };
+
+                    let Ok(p) = adapter.peripheral(&id).await else {
+                        continue;
+                    };
+
+                    // MAC address matching — not available on macOS (CoreBluetooth hides MACs)
+                    #[cfg(not(target_os = "macos"))]
+                    if let Some(ref addr) = target_addr {
+                        if p.address().to_string().eq_ignore_ascii_case(addr) {
+                            debug!("Found target BLE device at {}", p.address());
+                            return Some(p);
                         }
                     }
-                    // Match by name
+
                     if let Some(ref name) = target_name {
-                        if let Ok(device) = adapter_scan.device(addr) {
-                            if let Ok(Some(n)) = device.name().await {
+                        if let Ok(Some(props)) = p.properties().await {
+                            if let Some(ref n) = props.local_name {
                                 if n.contains(name.as_str()) {
-                                    debug!("Found BLE device '{}' at {}", n, addr);
-                                    return Some(addr);
+                                    debug!("Found BLE device '{}' at {}", n, p.address());
+                                    return Some(p);
                                 }
                             }
                         }
                     }
                 }
-            }
-            None
-        })
+                None
+            },
+        )
         .await
         .ok()
         .flatten()
-        .ok_or_else(|| anyhow::anyhow!(
-            "BLE device not found within {}s — ensure the device is advertising",
-            scan_timeout
-        ))?;
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "BLE device not found within {}s — ensure the device is advertising",
+                scan_timeout
+            )
+        })?;
 
-        let device = adapter.device(device_addr)
-            .with_context(|| format!("Failed to access device {}", device_addr))?;
+        adapter.stop_scan().await.ok();
 
-        if !device.is_connected().await.unwrap_or(false) {
-            debug!("Connecting to {}...", device_addr);
-            device.connect().await
-                .with_context(|| format!("Failed to connect to {}", device_addr))?;
-            debug!("Connected to {}", device_addr);
+        if !peripheral.is_connected().await.unwrap_or(false) {
+            debug!("Connecting to {}...", peripheral.address());
+            peripheral
+                .connect()
+                .await
+                .with_context(|| format!("Failed to connect to {}", peripheral.address()))?;
+            debug!("Connected to {}", peripheral.address());
         } else {
-            debug!("Already connected to {}", device_addr);
+            debug!("Already connected to {}", peripheral.address());
         }
 
-        // Discover SMP GATT service and characteristic
-        let mut found_char: Option<Characteristic> = None;
-        'outer: for service in device.services().await.context("Failed to discover GATT services")? {
-            if service.uuid().await.unwrap_or_default() == SMP_SERVICE_UUID {
-                for char in service.characteristics().await
-                    .context("Failed to discover GATT characteristics")?
-                {
-                    if char.uuid().await.unwrap_or_default() == SMP_CHAR_UUID {
-                        debug!("Found SMP characteristic");
-                        found_char = Some(char);
-                        break 'outer;
-                    }
-                }
-            }
-        }
+        peripheral
+            .discover_services()
+            .await
+            .context("Failed to discover GATT services")?;
 
-        let characteristic = found_char.ok_or_else(|| anyhow::anyhow!(
-            "SMP characteristic not found — ensure the device has BLE SMP service enabled"
-        ))?;
+        let smp_char = peripheral
+            .services()
+            .into_iter()
+            .find(|s| s.uuid == SMP_SERVICE_UUID)
+            .and_then(|s| s.characteristics.into_iter().find(|c| c.uuid == SMP_CHAR_UUID))
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "SMP characteristic not found — ensure the device has BLE SMP service enabled"
+                )
+            })?;
 
-        Ok((session, characteristic))
+        debug!("Found SMP characteristic");
+
+        // Subscribe once; the resulting stream is reused across all transceive() calls.
+        peripheral
+            .subscribe(&smp_char)
+            .await
+            .context("Failed to subscribe to SMP characteristic notifications")?;
+
+        let notifications = peripheral
+            .notifications()
+            .await
+            .context("Failed to open BLE notification stream")?;
+
+        Ok(BleConnection {
+            peripheral,
+            smp_char,
+            notifications,
+        })
     }
 
     fn next_seq(&mut self) -> u8 {
@@ -164,10 +214,14 @@ impl BleTransport {
         let version: u8 = 1; // SMP v2
         let byte0 = ((version & 0x03) << 3) | (op as u8 & 0x07);
         [
-            byte0, 0,
-            (len >> 8) as u8, (len & 0xFF) as u8,
-            (group.0 >> 8) as u8, (group.0 & 0xFF) as u8,
-            seq, id,
+            byte0,
+            0,
+            (len >> 8) as u8,
+            (len & 0xFF) as u8,
+            (group.0 >> 8) as u8,
+            (group.0 & 0xFF) as u8,
+            seq,
+            id,
         ]
     }
 
@@ -187,7 +241,14 @@ impl BleTransport {
             3 => NmpOp::WriteRsp,
             _ => bail!("Unknown SMP op: {}", op_val),
         };
-        Ok(NmpHdr { op, flags: 0, len, group: NmpGroup(group_val), seq, id })
+        Ok(NmpHdr {
+            op,
+            flags: 0,
+            len,
+            group: NmpGroup(group_val),
+            seq,
+            id,
+        })
     }
 }
 
@@ -207,23 +268,31 @@ impl Transport for BleTransport {
 
         debug!("BLE TX: {} bytes", packet.len());
 
-        let char = self.characteristic.clone();
         let timeout_ms = self.timeout_ms;
+        // Borrow rt and conn as disjoint fields so the async block can capture conn.
+        let rt = &self.rt;
+        let conn = self.conn.as_mut().unwrap();
 
-        // Subscribe to notifications, send request, then collect response fragments.
-        // BLE ATT notifications may carry partial SMP payloads if the packet exceeds ATT MTU.
-        let response = self.rt.block_on(async move {
-            let notify_stream = char.notify().await
-                .context("Failed to subscribe to SMP notifications")?;
-            tokio::pin!(notify_stream);
-
-            char.write(&packet).await
+        let response = rt.block_on(async {
+            conn.peripheral
+                .write(&conn.smp_char, &packet, WriteType::WithoutResponse)
+                .await
                 .context("Failed to write to SMP characteristic")?;
 
-            // Collect the first notification to read the SMP header + partial payload
+            // Collect the first notification that carries an SMP response.
+            // The stream may deliver notifications for other characteristics if any were
+            // subscribed by the platform; filter by UUID to be safe.
             let first = timeout(
                 Duration::from_millis(timeout_ms as u64),
-                notify_stream.next(),
+                async {
+                    loop {
+                        match conn.notifications.next().await {
+                            Some(n) if n.uuid == SMP_CHAR_UUID => break Some(n.value),
+                            Some(_) => continue,
+                            None => break None,
+                        }
+                    }
+                },
             )
             .await
             .map_err(|_| anyhow::anyhow!("BLE response timeout after {}ms", timeout_ms))?
@@ -236,11 +305,19 @@ impl Transport for BleTransport {
             let total_payload = ((first[2] as usize) << 8) | (first[3] as usize);
             let mut payload = first[8..].to_vec();
 
-            // Accumulate additional notifications if the SMP payload is fragmented
+            // Accumulate additional notifications if the SMP payload is fragmented across ATT MTU
             while payload.len() < total_payload {
                 let fragment = timeout(
                     Duration::from_millis(timeout_ms as u64),
-                    notify_stream.next(),
+                    async {
+                        loop {
+                            match conn.notifications.next().await {
+                                Some(n) if n.uuid == SMP_CHAR_UUID => break Some(n.value),
+                                Some(_) => continue,
+                                None => break None,
+                            }
+                        }
+                    },
                 )
                 .await
                 .map_err(|_| anyhow::anyhow!("BLE fragment timeout after {}ms", timeout_ms))?
@@ -249,7 +326,6 @@ impl Transport for BleTransport {
                 payload.extend_from_slice(&fragment);
             }
 
-            // Return header bytes + reassembled payload as a flat buffer
             let mut full = first[..8].to_vec();
             full.extend_from_slice(&payload[..total_payload]);
             Ok::<Vec<u8>, Error>(full)

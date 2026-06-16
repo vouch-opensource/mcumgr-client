@@ -368,7 +368,7 @@ dependencies = [
  "anyhow",
  "base64",
  "bincode",
- "bluer",
+ "btleplug",
  "byteorder",
  "clap",
  "crc16",
