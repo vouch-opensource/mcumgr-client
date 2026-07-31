@@ -44,6 +44,10 @@ struct Cli {
     #[arg(short, long)]
     verbose: bool,
 
+    /// silent mode
+    #[arg(short, long)]
+    silent: bool,
+
     /// initial timeout in seconds
     #[arg(short = 't', long = "initial_timeout", default_value_t = 60)]
     initial_timeout_s: u32,
@@ -275,18 +279,23 @@ enum Commands {
 }
 
 fn main() {
+    // parse command line arguments
+    let mut cli = Cli::parse();
+
     // show program name and version
     let name = env!("CARGO_PKG_NAME");
     let version = env!("CARGO_PKG_VERSION");
-    println!("{name} {version}");
-    println!();
 
-    // parse command line arguments
-    let mut cli = Cli::parse();
+    if !cli.silent {
+        println!("{name} {version}");
+        println!();
+    }
 
     // initialize the logger with the desired level filter based on the verbose flag
     let level_filter = if cli.verbose {
         LevelFilter::Debug
+    } else if cli.silent {
+        LevelFilter::Off
     } else {
         LevelFilter::Info
     };
@@ -386,7 +395,7 @@ fn execute_command(command: &Commands, transport: &mut dyn Transport, nb_retry: 
         // ============== Image Management ==============
         Commands::List => {
             let v = list(transport)?;
-            print!("response: {}", serde_json::to_string_pretty(&v)?);
+            println!("response: {}", serde_json::to_string_pretty(&v)?);
             Ok(())
         }
 
