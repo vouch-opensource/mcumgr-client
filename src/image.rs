@@ -104,7 +104,7 @@ where
     let data = read(filename)?;
     info!("{} bytes to transfer", data.len());
 
-    let mtu = transport.mtu();
+    let max_payload = transport.max_payload();
 
     // transfer in blocks
     let mut off: usize = 0;
@@ -118,32 +118,45 @@ where
 
         loop {
             // create image upload request
-            let chunk_len = mtu.min(data.len() - off);
-            let chunk = data[off..off + chunk_len].to_vec();
-            let len = data.len() as u32;
-            let req = if off == 0 {
-                ImageUploadReq {
-                    image_num: slot,
-                    off: off as u32,
-                    len: Some(len),
-                    data_sha: Some(Sha256::digest(&data).to_vec()),
-                    upgrade: None,
-                    data: chunk,
-                }
-            } else {
-                ImageUploadReq {
-                    image_num: slot,
-                    off: off as u32,
-                    len: None,
-                    data_sha: None,
-                    upgrade: None,
-                    data: chunk,
-                }
-            };
-            debug!("req: {:?}", req);
+            let mut try_length = max_payload.min(data.len() - off);
+            let mut body: Vec<u8>;
 
-            // convert to bytes with CBOR
-            let body = serde_cbor::to_vec(&req)?;
+            loop {
+                if off + try_length > data.len() {
+                    try_length = data.len() - off;
+                }
+
+                let chunk = data[off..off + try_length].to_vec();
+                let len = data.len() as u32;
+                let req = if off == 0 {
+                    ImageUploadReq {
+                        image_num: slot,
+                        off: off as u32,
+                        len: Some(len),
+                        data_sha: Some(Sha256::digest(&data).to_vec()),
+                        upgrade: None,
+                        data: chunk,
+                    }
+                } else {
+                    ImageUploadReq {
+                        image_num: slot,
+                        off: off as u32,
+                        len: None,
+                        data_sha: None,
+                        upgrade: None,
+                        data: chunk,
+                    }
+                };
+                debug!("req: {:?}", req);
+
+                // convert to bytes with CBOR
+                body = serde_cbor::to_vec(&req)?;
+                if body.len() <= max_payload {
+                    break;
+                } else {
+                    try_length -= body.len() - max_payload;
+                }
+            }
 
             sent_blocks += 1;
             match transport.transceive(

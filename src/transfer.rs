@@ -6,6 +6,8 @@ use byteorder::{BigEndian, ByteOrder, WriteBytesExt};
 use crc16::*;
 use lazy_static::lazy_static;
 use log::debug;
+use num::integer::div_floor;
+use num::ToPrimitive;
 use rand::{thread_rng, Rng};
 use serialport::SerialPort;
 use std::cmp::min;
@@ -33,6 +35,8 @@ pub trait Transport {
 
     /// Get the MTU for this transport
     fn mtu(&self) -> usize;
+
+    fn max_payload(&self) -> usize;
 
     /// Get the line length for this transport (for serial framing)
     fn linelength(&self) -> usize;
@@ -171,6 +175,22 @@ impl Transport for SerialTransport {
 
     fn mtu(&self) -> usize {
         self.specs.mtu
+    }
+
+    fn max_payload(&self) -> usize {
+        // Max overhead of BASE64 encoding + framing bytes, len and CRC
+        let smp_frame_len = div_floor(self.mtu() - 7, 4) * 3;
+
+        // Create a temporary NmpId wrapper
+        struct TempId(u8);
+        impl NmpId for TempId {
+            fn to_u8(&self) -> u8 {
+                self.0
+            }
+        }
+        let hdr = NmpHdr::new_req(NmpOp::Read, NmpGroup(0), TempId(0));
+        let hdr_size = bincode::serialized_size(&hdr).unwrap();
+        return smp_frame_len - hdr_size.to_usize().unwrap();
     }
 
     fn linelength(&self) -> usize {
@@ -364,6 +384,22 @@ impl Transport for UdpTransport {
 
     fn mtu(&self) -> usize {
         self.mtu
+    }
+
+    fn max_payload(&self) -> usize {
+        // Max overhead of BASE64 encoding + framing bytes, len and CRC
+        let smp_frame_len = div_floor(self.mtu() - 7, 4) * 3;
+
+        // Create a temporary NmpId wrapper
+        struct TempId(u8);
+        impl NmpId for TempId {
+            fn to_u8(&self) -> u8 {
+                self.0
+            }
+        }
+        let hdr = NmpHdr::new_req(NmpOp::Read, NmpGroup(0), TempId(0));
+        let hdr_size = bincode::serialized_size(&hdr).unwrap();
+        return smp_frame_len - hdr_size.to_usize().unwrap();
     }
 
     fn linelength(&self) -> usize {
