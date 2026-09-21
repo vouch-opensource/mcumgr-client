@@ -368,6 +368,11 @@ impl Transport for BleTransport {
         self.mtu
     }
 
+    fn max_payload(&self) -> usize {
+        // SMP header and body are sent in a single write, no BASE64 encoding or framing
+        self.mtu.saturating_sub(8)
+    }
+
     fn linelength(&self) -> usize {
         self.mtu
     }
