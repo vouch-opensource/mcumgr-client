@@ -13,11 +13,18 @@ wget -O - https://github.com/vouch-opensource/mcumgr-client/releases/latest/down
 unzip mcumgr-client-linux-x86.zip
 ```
 
+The Linux builds need `libdbus-1` for BLE support, which is installed by default on most distributions.
+
 ## Build Dependencies
 
 Install Rust:
 
 Recommended is with [rustup](https://www.rust-lang.org/tools/install), because then it is easy to keep it up to date.
+
+On Linux, BLE support needs the D-Bus development files:
+```bash
+sudo apt-get install libdbus-1-dev pkg-config
+```
 
 ## Build
 Change to this directory and build it:
@@ -28,7 +35,7 @@ Without `--release`, it builds in debug mode.
 
 ## Transport Options
 
-mcumgr-client supports two transport methods:
+mcumgr-client supports three transport methods:
 
 ### Serial Transport (default)
 Use `-d` or `--device` to specify a serial port:
@@ -48,6 +55,24 @@ The default UDP port is 1337. Use `--port` to specify a different port:
 ```bash
 mcumgr-client --host 192.0.2.1 --port 1338 <command>
 ```
+
+IPv6 addresses are supported as well:
+```bash
+mcumgr-client --host 2001:db8::1 <command>
+```
+
+### BLE Transport
+Use `--ble-address` or `--ble-name` to connect over Bluetooth Low Energy (SMP over BLE):
+```bash
+mcumgr-client --ble-address AA:BB:CC:DD:EE:FF <command>
+mcumgr-client --ble-name Zephyr <command>
+```
+
+`--ble-name` connects to the first device whose advertised name contains the given text. On macOS, device addresses are not available, so use `--ble-name` there. If a BLE option is given, BLE is used even if `--host` or `-d` are specified too.
+
+Use `--ble-timeout` to change the scan/connect timeout (default 10 seconds). The default `--ble-mtu` of 244 bytes requires an ATT MTU of 247. If the device supports only a smaller MTU, reduce it accordingly, for example `--ble-mtu 20` for the BLE default ATT MTU of 23.
+
+BLE is tested on Linux with BlueZ. Windows and macOS are supported by the underlying [btleplug](https://github.com/deviceplug/btleplug) library, but not tested yet.
 
 ## Commands
 
@@ -212,10 +237,15 @@ mcumgr-client --host 192.0.2.1 settings-save
 | `-d, --device` | Serial port device | Auto-detect |
 | `--host` | UDP host (use instead of serial) | - |
 | `--port` | UDP port | 1337 |
+| `--ble-address` | BLE device address (use instead of serial) | - |
+| `--ble-name` | BLE device name to scan for (use instead of serial) | - |
+| `--ble-timeout` | BLE scan/connect timeout in seconds | 10 |
+| `--ble-mtu` | BLE ATT MTU payload size in bytes | 244 |
 | `-v, --verbose` | Enable debug logging | false |
+| `-s, --silent` | Only print command results, no banner or log messages | false |
 | `-t, --initial_timeout` | Initial timeout in seconds | 60 |
 | `-u, --subsequent_timeout` | Subsequent timeout in ms | 200 |
-| `--nb_retry` | Number of retries per packet | 4 |
+| `--nb-retry` | Number of retries per packet | 4 |
 | `-l, --linelength` | Maximum line length (serial) | 128 |
 | `-m, --mtu` | Maximum request size | 512 |
 | `-b, --baudrate` | Serial baud rate | 115200 |
@@ -229,6 +259,13 @@ To enable MCUmgr features on your Zephyr device, add the relevant Kconfig option
 CONFIG_MCUMGR=y
 CONFIG_MCUMGR_TRANSPORT_UDP=y        # For UDP transport
 CONFIG_MCUMGR_TRANSPORT_UDP_IPV4=y
+```
+
+### BLE Transport
+```
+CONFIG_BT=y
+CONFIG_BT_PERIPHERAL=y
+CONFIG_MCUMGR_TRANSPORT_BT=y
 ```
 
 ### OS Management Group
@@ -284,6 +321,17 @@ mcumgr-client -m 4096 -l 8192 -d /dev/ttyACM0 upload firmware-image.bin
 mcumgr-client --host 192.0.2.1 os-info
 mcumgr-client --host 192.0.2.1 taskstat
 mcumgr-client --host 192.0.2.1 shell "kernel uptime"
+```
+
+**Flash firmware over BLE:**
+```bash
+mcumgr-client --ble-name Zephyr upload firmware-image.bin
+```
+
+**Use from scripts:**
+With `-s`, only the command result is printed, without the version banner and log messages. Error messages are suppressed as well, so check the exit code, which is 1 on failure:
+```bash
+mcumgr-client -s --host 192.0.2.1 list || echo "failed"
 ```
 
 **Auto-detect serial device:**
