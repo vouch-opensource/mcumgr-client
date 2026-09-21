@@ -368,9 +368,11 @@ dependencies = [
  "anyhow",
  "base64",
  "bincode",
+ "btleplug",
  "byteorder",
  "clap",
  "crc16",
+ "futures",
  "hex",
  "hex-buffer-serde",
  "humantime",
@@ -389,6 +391,8 @@ dependencies = [
  "serialport",
  "sha2",
  "simplelog",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]
