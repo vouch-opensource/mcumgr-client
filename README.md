@@ -4,7 +4,7 @@ This is a Rust program to run mcumgr commands, used for example for Zephyr, for 
 
 ## Download
 
-Released builds for x86-64 Windows, Linux, and MacOS are [here](https://github.com/vouch-opensource/mcumgr-client/releases).
+Released builds for Windows (x86-64), Linux (x86-64 and aarch64), and macOS (universal binary for Intel and Apple Silicon) are [here](https://github.com/vouch-opensource/mcumgr-client/releases).
 
 Example download:
 ```
@@ -44,6 +44,8 @@ mcumgr-client -d /dev/ttyACM0 <command>
 ```
 
 If not specified and only one serial device exists, it will be used automatically.
+
+For testing without hardware, `-d test` uses a simulated device which supports the image management commands (`list`, `upload`, `test`, `erase`).
 
 ### UDP Transport
 Use `--host` to connect over UDP (SMP over UDP):
@@ -151,7 +153,7 @@ mcumgr-client --host 192.0.2.1 bootloader-info --query mode
 ```bash
 mcumgr-client --host 192.0.2.1 hwid
 ```
-Note: Requires custom os-info hook on the device supporting format `h`.
+Note: Requires a custom os-info hook on the device supporting format `h` (`CONFIG_MCUMGR_MGMT_NOTIFICATION_HOOKS=y` and `CONFIG_MCUMGR_GRP_OS_INFO_CUSTOM_HOOKS=y`).
 
 ### Shell Management
 
@@ -230,6 +232,28 @@ mcumgr-client --host 192.0.2.1 settings-load
 mcumgr-client --host 192.0.2.1 settings-save
 ```
 
+### Custom Groups
+
+Send a raw request to an application-defined MCUmgr group (group IDs 64 and up are reserved for user groups):
+
+```bash
+mcumgr-client --host 192.0.2.1 custom --group 64 --id 0 --op read --body a1636b657907
+```
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `-g, --group` | MCUmgr group ID | - |
+| `-i, --id` | Command ID within the group | 0 |
+| `-o, --op` | Operation: `read` or `write` | read |
+| `--body` | CBOR request body as hex string | empty map |
+
+The body above is the CBOR encoding of `{"key": 7}`. It can be generated with e.g. `pip install cbor2` and `python3 -c 'import cbor2; print(cbor2.dumps({"key": 7}).hex())'`. The response is printed as JSON, including any error code returned by the device.
+
+**Query HCDF fragment info from a CogniPilot device (custom group 100):**
+```bash
+mcumgr-client --host 192.0.2.1 hcdf-info
+```
+
 ## Global Options
 
 | Option | Description | Default |
@@ -249,6 +273,7 @@ mcumgr-client --host 192.0.2.1 settings-save
 | `-l, --linelength` | Maximum line length (serial) | 128 |
 | `-m, --mtu` | Maximum request size | 512 |
 | `-b, --baudrate` | Serial baud rate | 115200 |
+| `-V, --version` | Print version | - |
 
 ## Zephyr Configuration
 
@@ -256,9 +281,32 @@ To enable MCUmgr features on your Zephyr device, add the relevant Kconfig option
 
 ### Basic MCUmgr (required)
 ```
+CONFIG_NET_BUF=y
+CONFIG_ZCBOR=y
 CONFIG_MCUMGR=y
-CONFIG_MCUMGR_TRANSPORT_UDP=y        # For UDP transport
-CONFIG_MCUMGR_TRANSPORT_UDP_IPV4=y
+```
+
+Plus at least one transport:
+
+### Serial Transport
+```
+CONFIG_BASE64=y
+CONFIG_CRC=y
+CONFIG_CONSOLE=y
+CONFIG_UART_MCUMGR=y
+CONFIG_MCUMGR_TRANSPORT_UART=y
+```
+
+The UART is selected with `zephyr,uart-mcumgr` in the devicetree `chosen` node, which many boards already define.
+
+### UDP Transport
+```
+CONFIG_NETWORKING=y
+CONFIG_NET_UDP=y
+CONFIG_NET_SOCKETS=y
+CONFIG_NET_IPV4=y
+CONFIG_MCUMGR_TRANSPORT_UDP=y
+CONFIG_MCUMGR_TRANSPORT_UDP_IPV4=y   # CONFIG_NET_IPV6 and CONFIG_MCUMGR_TRANSPORT_UDP_IPV6 for IPv6
 ```
 
 ### BLE Transport
@@ -272,13 +320,26 @@ CONFIG_MCUMGR_TRANSPORT_BT=y
 ```
 CONFIG_MCUMGR_GRP_OS=y
 CONFIG_MCUMGR_GRP_OS_INFO=y
+CONFIG_THREAD_MONITOR=y
 CONFIG_MCUMGR_GRP_OS_TASKSTAT=y
 CONFIG_MCUMGR_GRP_OS_MCUMGR_PARAMS=y
 CONFIG_MCUMGR_GRP_OS_BOOTLOADER_INFO=y
 ```
 
+For the stack columns of `taskstat`, add:
+```
+CONFIG_THREAD_STACK_INFO=y
+CONFIG_INIT_STACKS=y
+CONFIG_MCUMGR_GRP_OS_TASKSTAT_STACK_INFO=y
+```
+
 ### Image Management Group
 ```
+CONFIG_BOOTLOADER_MCUBOOT=y
+CONFIG_FLASH=y
+CONFIG_FLASH_MAP=y
+CONFIG_STREAM_FLASH=y
+CONFIG_IMG_MANAGER=y
 CONFIG_MCUMGR_GRP_IMG=y
 ```
 
@@ -301,13 +362,21 @@ CONFIG_MCUMGR_GRP_STAT=y
 ```
 CONFIG_FILE_SYSTEM=y
 CONFIG_MCUMGR_GRP_FS=y
+CONFIG_MCUMGR_GRP_FS_CHECKSUM_HASH=y   # for fs-hash
 ```
+
+The application needs to mount a file system, e.g. LittleFS with `CONFIG_FILE_SYSTEM_LITTLEFS=y`.
 
 ### Settings Management Group
 ```
 CONFIG_SETTINGS=y
+CONFIG_SETTINGS_RUNTIME=y
 CONFIG_MCUMGR_GRP_SETTINGS=y
 ```
+
+### Custom Management Group
+
+A custom group is registered in the application with `mgmt_register_group()` and `MCUMGR_HANDLER_DEFINE()`. See the [MCUmgr handlers documentation](https://docs.zephyrproject.org/latest/services/device_mgmt/mcumgr_handlers.html) and the example in Zephyr's `tests/subsys/mgmt/mcumgr/handler_demo`. For simple commands, a regular shell command executed with `shell` is often easier.
 
 ## Examples
 
@@ -358,7 +427,7 @@ There is a bug in the Zephyr CDC ACM driver. When building mcuboot for it, it ne
  #define CDC_CONTROL_SERIAL_STATE_TIMEOUT_US 100000
 ```
 
-With the default settings for the line length and MTU, it needs about 3 minutes to flash 917,504 bytes (5 times faster than the original mcumgr program). With these settings for mcuboot:
+With the default settings for the line length and MTU, it needs about 1:48 minutes to flash 917,504 bytes (5 times faster than the original mcumgr program). With these settings for mcuboot:
 
 ```
 CONFIG_BOOT_MAX_LINE_INPUT_LEN=8192
